@@ -1,1 +1,1 @@
-git@github.com:AudreyBeard/compressure.git
+PyQt6~=6.3
