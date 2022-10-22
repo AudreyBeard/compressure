@@ -1,7 +1,7 @@
 from pprint import pformat
 
 
-class CompressorFoundInPersistenceError(Exception):
+class PersistenceOverwriteError(Exception):
     def __init__(self, compressor, *args, **kwargs):
         super().__init__(f"""{compressor} exists in persistence - try using overwrite flag""", *args, **kwargs)
 

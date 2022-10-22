@@ -5,14 +5,14 @@ from copy import deepcopy
 from pprint import pformat
 
 from compressure.dataproc import try_subprocess
-from compressure.persistence import VideoCompressorPersistenceDefaults, VideoCompressorPersistence
+from compressure.persistence import VideoCompressionPersistenceDefaults, VideoCompressionPersistence
 from compressure.exceptions import EncoderSelectionError
 
-logging.basicConfig(filename='.compressor.log', level=logging.DEBUG)
+logging.basicConfig(filename='.compression.log', level=logging.DEBUG)
 
 
-class VideoCompressorDefaults(object):
-    workdir = VideoCompressorPersistenceDefaults.dpath_data
+class VideoCompressionDefaults(object):
+    workdir = VideoCompressionPersistenceDefaults.workdir
     gop_size = 6000
     encoder = "libx264"
     encoder_config_options = {
@@ -39,53 +39,56 @@ class VideoCompressorDefaults(object):
         return full_options
 
 
-class VideoCompressorSystem(object):
-    def __init__(self, fpath_manifest=VideoCompressorPersistenceDefaults.fpath_manifest,
-                 workdir=VideoCompressorPersistenceDefaults.dpath_data,
+class VideoCompressionSystem(object):
+    def __init__(self, fpath_manifest=VideoCompressionPersistenceDefaults.fpath_manifest,
+                 workdir=VideoCompressionPersistenceDefaults.workdir,
                  autosave=True,
                  expect_existing_manifest=False):
 
-        self.persistence = VideoCompressorPersistence(
+        self.persistence = VideoCompressionPersistence(
             fpath_manifest=fpath_manifest,
-            dpath_data=workdir,
+            workdir=workdir,
             autosave=autosave,
             expect_existing_manifest=expect_existing_manifest,
         )
 
     def compress(self, fpath_in, gop_size, encoder, encoder_config):
-        compressor = SingleVideoCompressor(
+        compression = SingleVideoCompression(
             fpath_in=fpath_in,
-            workdir=self.persistence.dpath_data,
+            workdir=self.persistence.workdir,
             gop_size=gop_size,
             encoder=encoder,
             encoder_config=encoder_config,
         )
-        cached = self.persistence.get(compressor)
+        cached = self.persistence.get(compression)
 
         if cached is None:
             logging.info("No video found in persistent storage - creating now")
-            self.persistence.add_compressor(compressor)
-            fpath, _ = compressor.transcode_video()
+            self.persistence.add_compression(compression)
+            fpath, _ = compression.transcode_video()
             logging.info(f"Successfully added & transcoded video to {fpath}")
         else:
-            logging.info(f"Found in {cached.fpath_out} in persistent storage")
+            logging.info(f"Found {cached['fpath_out']} in persistent storage")
+            fpath = cached['fpath_out']
+
+        return fpath
 
     def save(self):
         self.persistence.save()
 
 
-class SingleVideoCompressor(object):
+class SingleVideoCompression(object):
     def __init__(self, fpath_in, gop_size=None, encoder=None,
                  encoder_config_dict={},
-                 workdir=VideoCompressorDefaults.workdir, **kwargs):
+                 workdir=VideoCompressionDefaults.workdir, **kwargs):
 
         self.workdir = Path(workdir).expanduser()
         self._fpath_in = Path(fpath_in).expanduser()
 
-        self.encoder = VideoCompressorDefaults.encoder if encoder is None else encoder
-        self.gop_size = VideoCompressorDefaults.gop_size if gop_size is None else gop_size
+        self.encoder = VideoCompressionDefaults.encoder if encoder is None else encoder
+        self.gop_size = VideoCompressionDefaults.gop_size if gop_size is None else gop_size
 
-        self.encoder_config_dict = VideoCompressorDefaults.fallback(
+        self.encoder_config_dict = VideoCompressionDefaults.fallback(
             self.encoder,
             encoder_config_dict
         )
@@ -132,7 +135,7 @@ class SingleVideoCompressor(object):
 
     def generate_ffmpeg_encoding_params(self, override_dict={}):
         # Ingest specified args, falling back onto defaults if necessary
-        configs = VideoCompressorDefaults.fallback(self.encoder, override_dict)
+        configs = VideoCompressionDefaults.fallback(self.encoder, override_dict)
 
         ffmpeg_args = [self.encoder]
 
@@ -210,14 +213,14 @@ def parse_args():
     )
     parser.add_argument(
         "-g", "--gop_size",
-        default=VideoCompressorDefaults.gop_size,
+        default=VideoCompressionDefaults.gop_size,
         help="Group of pictures (gop) size, or inverse frequency of IDR frames."
     )
     parser.add_argument(
         "--encoder",
-        default=VideoCompressorDefaults.encoder,
+        default=VideoCompressionDefaults.encoder,
         help=f"which encoder to use. \
-            Must be one of {pformat(VideoCompressorDefaults.encoder_config_options.keys())}"
+            Must be one of {pformat(VideoCompressionDefaults.encoder_config_options.keys())}"
     )
     parser.add_argument(
         "--encoder-config",
@@ -225,5 +228,5 @@ def parse_args():
         nargs="+",
         help=f"""configuration, in form `key_0 value_0 key_1 value_1...`.
             If left unspecified, default values will be used for the following encoders:
-            {pformat(VideoCompressorDefaults.encoder_config_options)}"""
+            {pformat(VideoCompressionDefaults.encoder_config_options)}"""
     )

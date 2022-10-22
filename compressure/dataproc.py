@@ -30,12 +30,37 @@ def reverse_video(fpath_in, fpath_out=None):
     command = [
         "ffmpeg",
         "-y",
-        "-v", "error",
         "-i", str(fpath_in),
         "-vf", "reverse",
         fpath_out
     ]
     try_subprocess(command)
+    return fpath_out
+
+
+def concat_videos(videos_list, fpath_out="output.avi"):
+    input_videos = f"concat:{'|'.join(videos_list)}"
+    command = [
+        "ffmpeg", "-y",
+        "-v", "error",
+        "-i", input_videos,
+        "-c:a", "copy",
+        "-c:v", "copy",
+        fpath_out
+    ]
+    try_subprocess(command)
+    return fpath_out
+
+
+def reverse_loop(fpath_in, fpath_out=None):
+    fpath_in_ = Path(fpath_in)
+    fpath_rev = str(Path(fpath_in).with_stem(fpath_in_.stem + "_pre-reverse").with_suffix(".avi"))
+    reverse_video(fpath_in, fpath_rev)
+
+    if fpath_out is None:
+        fpath_out = str(Path(fpath_in).with_stem(fpath_in_.stem + "_reverse_loop").with_suffix(".avi"))
+
+    concat_videos([fpath_in, fpath_rev], fpath_out)
     return fpath_out
 
 
@@ -165,6 +190,6 @@ class VideoMetadata(object):
                 "-of", "csv=s=x:p=0",
                 str(self.fpath)
             ]
-            self._duration = float(try_subprocess(command))
+            self._duration = float(try_subprocess(command).stdout)
 
         return self._duration
