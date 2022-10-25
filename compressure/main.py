@@ -1,3 +1,4 @@
+from copy import deepcopy
 from collections import deque
 from pathlib import Path
 import logging
@@ -194,13 +195,18 @@ def main():
     slicer_backward = controller.slice(compression_backward, args.superframe_size)
     buffer = controller.init_buffer(slicer_forward, slicer_backward)
 
-    video_list = [buffer.state]
+    initial_state = deepcopy(buffer.state)
     timeline = generate_timeline_function(
         args.superframe_size,
         len(buffer),
         frequency=args.frequency,
         n_superframes=args.n_superframes - 1
     )
+
+    if timeline[0] == initial_state:
+        video_list = []
+    else:
+        video_list = [initial_state]
 
     for loc in timeline:
         video_list.append(buffer.step(to=loc))
