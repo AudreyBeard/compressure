@@ -318,6 +318,7 @@ def construct_encoder_config(encoder, user_specified_config):
     return encoder_config
 
 
+# TODO try just streaming the video and adding videos to the end of it
 if __name__ == "__main__":
     with ipdb.launch_ipdb_on_exception():
         main()
