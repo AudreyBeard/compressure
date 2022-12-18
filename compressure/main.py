@@ -1,3 +1,4 @@
+import multiprocessing as mp
 from copy import deepcopy
 from collections import deque
 from pathlib import Path
@@ -13,6 +14,7 @@ from compressure.compression import SingleVideoCompression, VideoCompressionDefa
 from compressure.persistence import VideoPersistenceDefaults, CompressurePersistence
 from compressure.valve import VideoSlicerDefaults, VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop
+from compressure.stream import InfinitePlaylist, ffplay, concat_stream, StreamingDefaults
 from compressure.exceptions import (
     EncoderSelectionError,
     MalformedConfigurationError,
@@ -200,7 +202,8 @@ def main():
         args.superframe_size,
         len(buffer),
         frequency=args.frequency,
-        n_superframes=args.n_superframes - 1
+        n_superframes=args.n_superframes - 1,
+        rectified=args.rectified,
     )
 
     if timeline[0] == initial_state:
@@ -211,9 +214,29 @@ def main():
     for loc in timeline:
         video_list.append(buffer.step(to=loc))
 
-    print(f"Concatenating {len(video_list)} videos")
-    concat_videos(video_list, fpath_out=args.fpath_out)
-    print(args.fpath_out)
+    if True:
+        print(f"Concatenating {len(video_list)} videos")
+        concat_videos(video_list, fpath_out=args.fpath_out)
+        print(args.fpath_out)
+    else:
+        mp.set_start_method("fork")
+        ffplaylist = InfinitePlaylist(force=True)
+        ffplayer = mp.Process(
+            target=ffplay,
+            args=(StreamingDefaults.socket_fpath, )
+        )
+        ffstreamer = mp.Process(
+            target=concat_stream,
+            args=(ffplaylist.fpath, StreamingDefaults.socket_fpath, )
+        )
+        ffplaylist.next_video(video_list[0])
+        ffstreamer.start()
+        ffplayer.start()
+        for vid in video_list:
+            ffplaylist.next_video(video_list[0])
+        ffplayer.join()
+        ffstreamer.join()
+        ffplaylist.cleanup()
 
 
 def parse_args():
@@ -222,6 +245,11 @@ def parse_args():
         "--pre_reverse_loop",
         action="store_true",
         help="Reverse loop the videos before processing?"
+    )
+    parser.add_argument(
+        "--rectified",
+        action="store_true",
+        help="Rectify video?"
     )
     parser.add_argument(
         "--superframe_size",
@@ -280,21 +308,21 @@ def parse_args():
 
 def generate_timeline_function(superframe_size, len_lvb,
                                n_superframes=500, category="sinusoid",
-                               frequency=1):
+                               frequency=1, rectified=True):
     if category == "sinusoid":
         locations = np.sin(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
         ) * (len_lvb - 1)
-        locations[locations < 0] = -locations[locations < 0]
-        return locations.astype(int)
+        if rectified:
+            locations[locations < 0] = -locations[locations < 0]
     elif category == "compound-sinusoid":
         locations = np.sin(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
         ) * (len_lvb)
         locations[locations < 0] = -locations[locations < 0]
-        return locations.astype(int)
     else:
         raise NotImplementedError(f"can't parse category {category} yet")
+    return locations.astype(int)
 
 
 def construct_encoder_config(encoder, user_specified_config):

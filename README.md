@@ -1,1 +1,5 @@
 # compressure
+
+# Requirements
+- ffmpeg
+- mpv ???
