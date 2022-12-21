@@ -10,7 +10,7 @@ import ipdb  # noqa
 import numpy as np
 
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
-from compressure.persistence import VideoPersistenceDefaults, CompressurePersistence
+from compressure.persistence import CompressurePersistence
 from compressure.valve import VideoSlicerDefaults, VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop
 from compressure.exceptions import (
@@ -21,8 +21,8 @@ from compressure.exceptions import (
 
 
 class CompressureSystem(object):
-    def __init__(self, fpath_manifest=VideoPersistenceDefaults.fpath_manifest,
-                 workdir=VideoPersistenceDefaults.workdir,
+    def __init__(self, fpath_manifest=CompressurePersistence.defaults.fpath_manifest,
+                 workdir=CompressurePersistence.defaults.workdir,
                  verbosity=1):
 
         self.persistence = CompressurePersistence(

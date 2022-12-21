@@ -66,9 +66,9 @@ class VideoPersistence(object):
             logging.error(f"Caught {e} - this usually means the manifest is malformed. Try deleting the offending entry.")
             raise e
         else:
-            logging.info(f"Found manifest {self.fpath_manifest} with {len(manifest)} entries")
-            logging.info(f"""Overriding self.workdir from existing manifest: \
-                {self.workdir} -> {manifest['workdir']}""")
+            logging.info(f"Found manifest {self.fpath_manifest} with {len(manifest['encodes'])} entries")
+            logging.info(f"""Overriding self.workdir from existing manifest:
+                \n{self.workdir} -> {manifest['workdir']}""")
             self.workdir = manifest['workdir']
 
         return manifest
@@ -170,6 +170,8 @@ class VideoCompressionPersistence(VideoPersistence):
 
 
 class CompressurePersistence(object):
+    defaults = VideoPersistenceDefaults
+
     def __init__(self, fpath_manifest=VideoPersistenceDefaults.fpath_manifest,
                  workdir=VideoPersistenceDefaults.workdir,
                  autosave=True, expect_existing_manifest=False, overwrite=False,
@@ -217,12 +219,12 @@ class CompressurePersistence(object):
             raise e
         else:
             self._log_print(
-                f"Found manifest {self.fpath_manifest} with {len(manifest)} entries",
+                f"Found manifest {self.fpath_manifest} with {len(manifest)} sources",
                 logging.info
             )
             self._log_print(
                 f"""Overriding self.workdir from existing manifest: \
-                    {self.workdir} -> {manifest['workdir']}""",
+                    \n{self.workdir} -> {manifest['workdir']}""",
                 logging.info
             )
             self.workdir = manifest['workdir']
