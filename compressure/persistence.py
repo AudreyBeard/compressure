@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 import json
 import logging
+from typing import Optional
+from pprint import pformat
 
 from compressure.exceptions import PersistenceOverwriteError, ExistingSourceError
 
@@ -352,15 +354,19 @@ class CompressurePersistence(object):
 
 class CompressureManifest(object):
     defaults = VideoPersistenceDefaults
+    version = "1.0"
 
-    def __init__(self, fpath=None, workdir=None, version=None, autosave=True):
+    def __init__(self, fpath: Optional[str] = None, workdir: Optional[str] = None,
+                 autosave: bool = True):
 
         fpath = fpath if fpath is not None else self.defaults.fpath_manifest
         workdir = workdir if workdir is not None else self.defaults.workdir
 
         self.fpath = Path(fpath).expanduser()
         self.workdir = Path(workdir).expanduser()
-        self.version = version if version is not None else self.defaults.version
+        self.autosave = autosave
+
+        self._try_read()
 
     def _try_read(self):
         try:
@@ -374,6 +380,9 @@ class CompressureManifest(object):
 
         except json.JSONDecodeError as e:
             logging.error(f"Caught {e} - this usually means the manifest is malformed. Try deleting the offending entry.")
+            raise e
+        except KeyError as e:
+            logging.error(f"Caught {e} - this usually means the manifest at {self.fpath} is an older version of this one {self.version}. Consider renaming the old one.")
             raise e
         else:
             print(f"Found manifest at {self.fpath} with {len(payload['sources'])} sources")
@@ -398,7 +407,7 @@ class CompressureManifest(object):
         with open(str(self.fpath), 'w') as fid:
             json.dump(self.data, fid)
 
-    def add_source(self, fpath):
+    def add_source(self, fpath: str) -> dict:
         """ Adds a source file to the manifest with empty fields
         """
         fname = Path(fpath).name
@@ -416,9 +425,30 @@ class CompressureManifest(object):
         if self.autosave:
             self.save()
 
-    def __len__(self):
+        return self.data['sources'][fname]
+
+    def add_encode(self, fpath_source: str, fpath_out: str, parameters: dict,
+                   command: Optional[str] = None) -> dict:
+        """ Adds a specific encode to a source file
+        """
+        source_name = Path(fpath_source).name
+        out_name = Path(fpath_out).name
+        self.data['sources'][source_name]['encodes'][out_name] = {
+            'fpath': fpath_out,
+            'parameters': parameters,
+            'command': command
+        }
+
+    def __len__(self) -> int:
         return len(self.data['sources'])
 
-    def __getitem__(self, source):
+    def __getitem__(self, source: str) -> dict:
         source_name = Path(source).name
         return self.data['sources'][source_name]
+
+    def __repr__(self) -> str:
+        return pformat(self.data)
+
+    @property
+    def sources(self) -> list:
+        return list(self.data['sources'].keys())
