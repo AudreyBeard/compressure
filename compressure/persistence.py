@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 import logging
 
-from compressure.exceptions import PersistenceOverwriteError
+from compressure.exceptions import PersistenceOverwriteError, ExistingSourceError
 
 logging.basicConfig(filename='.persistence.log', level=logging.DEBUG)
 
@@ -12,7 +12,7 @@ class VideoPersistenceDefaults(object):
     # Default location is ./.cache
     workdir = Path("~/.cache/compressure/").expanduser()
     fpath_manifest = workdir / "manifest.json"
-    version = "0.0"
+    version = "1.0"
 
 
 class VideoCompressionPersistenceDefaults(object):
@@ -348,3 +348,77 @@ class CompressurePersistence(object):
 
         if self.autosave:
             self.save()
+
+
+class CompressureManifest(object):
+    defaults = VideoPersistenceDefaults
+
+    def __init__(self, fpath=None, workdir=None, version=None, autosave=True):
+
+        fpath = fpath if fpath is not None else self.defaults.fpath_manifest
+        workdir = workdir if workdir is not None else self.defaults.workdir
+
+        self.fpath = Path(fpath).expanduser()
+        self.workdir = Path(workdir).expanduser()
+        self.version = version if version is not None else self.defaults.version
+
+    def _try_read(self):
+        try:
+            with open(str(self.fpath), 'r') as fid:
+                payload = json.load(fid)
+        except FileNotFoundError:
+            print(f"No manifest file found at {self.fpath}, initializing new manifest")
+            payload = self._empty_payload
+            os.makedirs(str(self.workdir), exist_ok=True)
+            os.makedirs(self.fpath.parent, exist_ok=True)
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Caught {e} - this usually means the manifest is malformed. Try deleting the offending entry.")
+            raise e
+        else:
+            print(f"Found manifest at {self.fpath} with {len(payload['sources'])} sources")
+            assert str(self.workdir) == payload['workdir']
+
+        self.data = payload
+
+    @property
+    def _empty_payload(self):
+        """ Initializes an empty payload, usually when someone first uses compressure
+        """
+        payload = {
+            'version': self.version,
+            'workdir': str(self.workdir),
+            'sources': {},
+        }
+        return payload
+
+    def save(self):
+        """ Saves the manifest as a JSON file
+        """
+        with open(str(self.fpath), 'w') as fid:
+            json.dump(self.data, fid)
+
+    def add_source(self, fpath):
+        """ Adds a source file to the manifest with empty fields
+        """
+        fname = Path(fpath).name
+        if self.data['sources'].get(fname) is not None:
+            raise ExistingSourceError(self, fpath)
+
+        self.data['sources'][fname] = {
+            'fpath': fpath,
+            'encodes': {},
+            'reversals': {},
+            'reverse_loops': {},
+            'slices': {},
+        }
+
+        if self.autosave:
+            self.save()
+
+    def __len__(self):
+        return len(self.data['sources'])
+
+    def __getitem__(self, source):
+        source_name = Path(source).name
+        return self.data['sources'][source_name]
