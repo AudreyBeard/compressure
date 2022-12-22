@@ -10,7 +10,7 @@ import ipdb  # noqa
 import numpy as np
 
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
-from compressure.persistence import CompressurePersistence
+from compressure.persistence import CompressurePersistence, CompressureManifest
 from compressure.valve import VideoSlicerDefaults, VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop
 from compressure.exceptions import (
@@ -166,54 +166,44 @@ class VideoSliceBufferReversible(object):
         return len(self.buffer_forward)
 
 
-def main():
-    args = parse_args()
-    controller = CompressureSystem()
-    encoder_config = construct_encoder_config(args.encoder, args.encoder_config)
-    if args.pre_reverse_loop:
-        raise NotImplementedError("reverse-looping needs work. don't use it")
-        print("reverse-looping input")
-        fpath_in_forward = reverse_loop(args.fpath_in_forward)
-        fpath_in_backward = reverse_loop(args.fpath_in_backward)
+def generate_timeline_function(superframe_size, len_lvb,
+                               n_superframes=500, category="sinusoid",
+                               frequency=1):
+    if category == "sinusoid":
+        locations = np.sin(
+            np.linspace(0, 2 * np.pi * frequency, n_superframes)
+        ) * (len_lvb - 1)
+        locations[locations < 0] = -locations[locations < 0]
+        return locations.astype(int)
+    elif category == "compound-sinusoid":
+        locations = np.sin(
+            np.linspace(0, 2 * np.pi * frequency, n_superframes)
+        ) * (len_lvb)
+        locations[locations < 0] = -locations[locations < 0]
+        return locations.astype(int)
     else:
-        fpath_in_forward = args.fpath_in_forward
-        fpath_in_backward = args.fpath_in_backward
+        raise NotImplementedError(f"can't parse category {category} yet")
 
-    compression_forward = controller.compress(
-        fpath_in_forward,
-        gop_size=args.gop_size,
-        encoder=args.encoder,
-        encoder_config=encoder_config
-    )
-    compression_backward = controller.compress(
-        fpath_in_backward,
-        gop_size=args.gop_size,
-        encoder=args.encoder,
-        encoder_config=encoder_config
-    )
-    slicer_forward = controller.slice(compression_forward, args.superframe_size)
-    slicer_backward = controller.slice(compression_backward, args.superframe_size)
-    buffer = controller.init_buffer(slicer_forward, slicer_backward)
 
-    initial_state = deepcopy(buffer.state)
-    timeline = generate_timeline_function(
-        args.superframe_size,
-        len(buffer),
-        frequency=args.frequency,
-        n_superframes=args.n_superframes - 1
-    )
+def construct_encoder_config(encoder, user_specified_config):
+    try:
+        encoder_config = VideoCompressionDefaults.encoder_config_options[encoder]
+    except KeyError:
+        raise EncoderSelectionError(encoder)
 
-    if timeline[0] == initial_state:
-        video_list = []
-    else:
-        video_list = [initial_state]
+    for i in range(0, len(user_specified_config), 2):
+        try:
+            key = user_specified_config[i]
+            value = user_specified_config[i + 1]
+        except IndexError:
+            raise MalformedConfigurationError(len(user_specified_config))
 
-    for loc in timeline:
-        video_list.append(buffer.step(to=loc))
-
-    print(f"Concatenating {len(video_list)} videos")
-    concat_videos(video_list, fpath_out=args.fpath_out)
-    print(args.fpath_out)
+        if encoder_config.get(key) is None:
+            # TODO this should just be a warning
+            raise UnrecognizedEncoderConfigError(encoder, key)
+        else:
+            encoder_config[key] = value
+    return encoder_config
 
 
 def parse_args():
@@ -278,44 +268,54 @@ def parse_args():
     return parser.parse_args()
 
 
-def generate_timeline_function(superframe_size, len_lvb,
-                               n_superframes=500, category="sinusoid",
-                               frequency=1):
-    if category == "sinusoid":
-        locations = np.sin(
-            np.linspace(0, 2 * np.pi * frequency, n_superframes)
-        ) * (len_lvb - 1)
-        locations[locations < 0] = -locations[locations < 0]
-        return locations.astype(int)
-    elif category == "compound-sinusoid":
-        locations = np.sin(
-            np.linspace(0, 2 * np.pi * frequency, n_superframes)
-        ) * (len_lvb)
-        locations[locations < 0] = -locations[locations < 0]
-        return locations.astype(int)
+def main():
+    args = parse_args()
+    controller = CompressureSystem()
+    encoder_config = construct_encoder_config(args.encoder, args.encoder_config)
+    if args.pre_reverse_loop:
+        raise NotImplementedError("reverse-looping needs work. don't use it")
+        print("reverse-looping input")
+        fpath_in_forward = reverse_loop(args.fpath_in_forward)
+        fpath_in_backward = reverse_loop(args.fpath_in_backward)
     else:
-        raise NotImplementedError(f"can't parse category {category} yet")
+        fpath_in_forward = args.fpath_in_forward
+        fpath_in_backward = args.fpath_in_backward
 
+    compression_forward = controller.compress(
+        fpath_in_forward,
+        gop_size=args.gop_size,
+        encoder=args.encoder,
+        encoder_config=encoder_config
+    )
+    compression_backward = controller.compress(
+        fpath_in_backward,
+        gop_size=args.gop_size,
+        encoder=args.encoder,
+        encoder_config=encoder_config
+    )
+    slicer_forward = controller.slice(compression_forward, args.superframe_size)
+    slicer_backward = controller.slice(compression_backward, args.superframe_size)
+    buffer = controller.init_buffer(slicer_forward, slicer_backward)
 
-def construct_encoder_config(encoder, user_specified_config):
-    try:
-        encoder_config = VideoCompressionDefaults.encoder_config_options[encoder]
-    except KeyError:
-        raise EncoderSelectionError(encoder)
+    initial_state = deepcopy(buffer.state)
+    timeline = generate_timeline_function(
+        args.superframe_size,
+        len(buffer),
+        frequency=args.frequency,
+        n_superframes=args.n_superframes - 1
+    )
 
-    for i in range(0, len(user_specified_config), 2):
-        try:
-            key = user_specified_config[i]
-            value = user_specified_config[i + 1]
-        except IndexError:
-            raise MalformedConfigurationError(len(user_specified_config))
+    if timeline[0] == initial_state:
+        video_list = []
+    else:
+        video_list = [initial_state]
 
-        if encoder_config.get(key) is None:
-            # TODO this should just be a warning
-            raise UnrecognizedEncoderConfigError(encoder, key)
-        else:
-            encoder_config[key] = value
-    return encoder_config
+    for loc in timeline:
+        video_list.append(buffer.step(to=loc))
+
+    print(f"Concatenating {len(video_list)} videos")
+    concat_videos(video_list, fpath_out=args.fpath_out)
+    print(args.fpath_out)
 
 
 if __name__ == "__main__":
