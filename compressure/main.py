@@ -10,7 +10,7 @@ import ipdb  # noqa
 import numpy as np
 
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
-from compressure.persistence import CompressurePersistence, CompressureManifest
+from compressure.persistence import CompressureManifest
 from compressure.valve import VideoSlicerDefaults, VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop
 from compressure.exceptions import (
@@ -21,18 +21,16 @@ from compressure.exceptions import (
 
 
 class CompressureSystem(object):
-    def __init__(self, fpath_manifest=CompressurePersistence.defaults.fpath_manifest,
-                 workdir=CompressurePersistence.defaults.workdir,
+    def __init__(self, fpath_manifest=CompressureManifest.defaults.fpath_manifest,
+                 workdir=CompressureManifest.defaults.workdir,
                  verbosity=1):
 
-        self.persistence = CompressurePersistence(
-            fpath_manifest=fpath_manifest,
+        self.manifest = CompressureManifest(
+            fpath=fpath_manifest,
             workdir=workdir,
-            autosave=True,
-            expect_existing_manifest=True,
-            overwrite=False,
             verbosity=verbosity
         )
+
         self.verbosity = verbosity
 
     def pre_reverse(self, fpath_in):
@@ -53,24 +51,30 @@ class CompressureSystem(object):
             encoder=encoder,
             encoder_config=encoder_config
         )
-        cached = self.persistence.get_compression(compressor)
-
-        if cached is None:
+        try:
+            encode = self.manifest.get_encode(
+                fpath_source=fpath_in,
+                fpath_out=compressor.fpath_out,
+            )
+        except KeyError:
             self._log_print(
                 "No video found in persistent storage - creating now",
                 logging.info
             )
-            fpath, _ = compressor.transcode_video()
-            self.persistence.add_compression(compressor)
+            fpath_out, _ = compressor.transcode_video()
+            ipdb.set_trace()
+            encode = self.manifest.add_encode(
+                fpath_source=fpath_in,
+                fpath_out=fpath_out,
+                parameters=compressor.encoder_config_dict,
+                command=compressor.transcode_command
+            )
             self._log_print(
-                f"Successfully added & transcoded video to {fpath}",
+                f"Successfully added & transcoded video to {fpath_out}",
                 logging.info
             )
-        else:
-            logging.info(f"Found {cached['fpath_out']} in persistent storage")
-            fpath = cached['fpath_out']
 
-        return compressor
+        return compressor, encode
 
     def _log_print(self, msg, log_op):
         if self.verbosity > 0:
