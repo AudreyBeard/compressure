@@ -3,7 +3,6 @@ from pathlib import Path
 import json
 import logging
 from typing import Optional
-from pprint import pformat
 
 from compressure.exceptions import PersistenceOverwriteError, ExistingSourceError
 
@@ -19,7 +18,7 @@ class VideoPersistenceDefaults(object):
 
 class VideoCompressionPersistenceDefaults(object):
     # Default location is ./.cache
-    workdir = VideoPersistenceDefaults.workdir / "compressions"
+    workdir = VideoPersistenceDefaults.workdir / "encodes"
     fpath_manifest = workdir / "manifest.json"
     version = "0.1"
 
@@ -357,35 +356,53 @@ class CompressureManifest(object):
     version = "1.0"
 
     def __init__(self, fpath: Optional[str] = None, workdir: Optional[str] = None,
-                 autosave: bool = True):
-
+                 autosave: bool = True, verbosity: int = 1):
         fpath = fpath if fpath is not None else self.defaults.fpath_manifest
         workdir = workdir if workdir is not None else self.defaults.workdir
 
         self.fpath = Path(fpath).expanduser()
         self.workdir = Path(workdir).expanduser()
         self.autosave = autosave
+        self.verbosity = verbosity
 
         self._try_read()
+
+    def _log_print(self, msg, log_op):
+        if self.verbosity > 0:
+            print(msg)
+
+        log_op(msg)
 
     def _try_read(self):
         try:
             with open(str(self.fpath), 'r') as fid:
                 payload = json.load(fid)
         except FileNotFoundError:
-            print(f"No manifest file found at {self.fpath}, initializing new manifest")
+            self._log_print(
+                f"No manifest file found at {self.fpath}, initializing new manifest",
+                logging.info
+            )
             payload = self._empty_payload
             os.makedirs(str(self.workdir), exist_ok=True)
             os.makedirs(self.fpath.parent, exist_ok=True)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Caught {e} - this usually means the manifest is malformed. Try deleting the offending entry.")
+            self._log_print(
+                f"Caught {e} - this usually means the manifest is malformed. Try deleting the offending entry.",
+                logging.error
+            )
             raise e
         except KeyError as e:
-            logging.error(f"Caught {e} - this usually means the manifest at {self.fpath} is an older version of this one {self.version}. Consider renaming the old one.")
+            self._log_print(
+                f"Caught {e} - this usually means the manifest at {self.fpath} is an older version than this one {self.version}. Consider renaming the old one.",
+                logging.error
+            )
             raise e
         else:
-            print(f"Found manifest at {self.fpath} with {len(payload['sources'])} sources")
+            self._log_print(
+                f"Found manifest at {self.fpath} with {len(payload['sources'])} sources",
+                logging.info
+            )
             assert str(self.workdir) == payload['workdir']
 
         self.data = payload
@@ -438,6 +455,7 @@ class CompressureManifest(object):
             'parameters': parameters,
             'command': command
         }
+        return self.get_encode(fpath_source, fpath_out)
 
     def __len__(self) -> int:
         return len(self.data['sources'])
@@ -447,8 +465,20 @@ class CompressureManifest(object):
         return self.data['sources'][source_name]
 
     def __repr__(self) -> str:
-        return pformat(self.data)
+        return str(self.data)
 
     @property
     def sources(self) -> list:
         return list(self.data['sources'].keys())
+
+    def get_encode(self, fpath_source, fpath_out) -> dict:
+        source_name = Path(fpath_source).name
+        encode_name = Path(fpath_out).name
+        try:
+            source_dict = self[source_name]
+        except KeyError:
+            self.add_source(fpath_source)
+            source_dict = self[source_name]
+
+        # NOTE this will throw a KeyError if the above except block executed
+        return source_dict['encodes'][encode_name]
