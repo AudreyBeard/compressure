@@ -1,5 +1,3 @@
-[[_TOC_]]
-
 # Overview
 Compressure is a tool for video creation that hacks the time-dependence
 properties of video compression codecs (H.264, MPEG-4, etc.) by manipulating
@@ -74,10 +72,7 @@ The easiest entrypoint is `main.py`. You can run this in an interactive Python s
 
 Note that you'll need some source videos to run any of these. That's kinda what this whole project is about. We suggest starting with short videos (10-30 seconds).
 
-### Interactive Python Session
-This is the "manual" mode that gives you the most control and responsibility. It is the preferred mode of development. The specifics will be different based on your system, but it likely will look something like this:
-
-#### Using Default values
+### Note about Default Values
 Compressure defaults to filesystem locations, encoding schemes, and hyperparameters that are supposed to be understandable, interesting, and fast. In general, we try to keep default parameters in a simple class within the module in which they're relevant, with class names like `VideoPersistenceDefaults` and `VideoCompressionDefaults`. This may change at some point. Below are some examples:
 - cached files (including the manifest file, a JSON file that keeps track of cached files) go to `~/.cache/compressure` unless specified otherwise
 - encoded videos are dropped into the `$CACHE/encodes` by default, where `$CACHE` is the location specified above.
@@ -94,6 +89,11 @@ Compressure defaults to filesystem locations, encoding schemes, and hyperparamet
         - `-b:v` is the target bitrate, which we specify as `bitrate` in Python for readability
     - GoP size is the "group of pictures" size, specifying the maximum number of frames to place between intra-frames. Lower numbers will "reset" the video to a normal-looking state more frequently, higher numbers will propagate artifacts for longer (more abstract). This corresponds to the ffmpeg option `-g`
 
+
+### Interactive Python Session
+This is the "manual" mode that gives you the most control and responsibility. It is the preferred mode of development. The specifics will be different based on your system, but it likely will look something like this:
+
+#### Using Default values
 ```python
 from compressure.main import CompressureSystem
 compsys = CompressureSystem()
@@ -101,8 +101,7 @@ fpath_in = "~/data/video/input/blooming-4.mov"
 compsys.compress(fpath_in)
 ```
 
-### Using Custom Values
-This is where it starts to become an interesting experiment. We recommend playing around with this - use different presets, codecs, qp values, etc.!
+#### Using Custom Values
 ```python
 from compressure.main import CompressureSystem
 compsys = CompressureSystem(fpath_manifest, workdir, verbosity)
@@ -117,4 +116,10 @@ compsys.compress(
         'bf': 0,
         },
     )
+```
+
+This is where it starts to become an interesting experiment. We recommend playing around with this - use different presets, codecs, qp values, etc.!
+
+### Command Line
+```bash
 ```
