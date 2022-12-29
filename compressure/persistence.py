@@ -4,6 +4,8 @@ import json
 import logging
 from typing import Optional, Union
 
+import ipdb
+
 from compressure.exceptions import PersistenceOverwriteError, ExistingSourceError
 
 logging.basicConfig(filename='.persistence.log', level=logging.DEBUG)
@@ -239,6 +241,7 @@ class CompressurePersistence(object):
             slices = self.manifest.add_slices(fpath_source, fpath_encode, superframe_size)
 
         if self.autosave:
+            ipdb.set_trace()
             self.save()
 
         return slices
@@ -398,6 +401,7 @@ class CompressureManifest(object):
         try:
             slices = encode['slices']['superframe_size'][superframe_size]
         except KeyError:
+            encode_name = Path(fpath_encode).name
             msg = f"Didn't find slices with superframe-size {superframe_size} for encode {encode_name} in manifest"  # noqa
             raise KeyError(msg)
 
