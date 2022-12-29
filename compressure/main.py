@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 from collections import deque
 import logging
@@ -7,6 +8,7 @@ from pprint import pformat
 import ipdb  # noqa
 import numpy as np
 
+from compressure.file_interface import nicely_sorted
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
 from compressure.persistence import CompressurePersistence
 from compressure.valve import VideoSlicer
@@ -125,13 +127,22 @@ class CompressureSystem(object):
 
         return slices
 
-    def init_buffer(self, slicer_forward, slicer_backward):
-        buffer = VideoSliceBufferReversible(slicer_forward, slicer_backward)
+    def init_buffer(self,
+                    dpath_slices_forward: str,
+                    dpath_slices_backward: str
+                    ) -> "VideoSliceBufferReversible":
+        """ Initializes video buffer for forward/reverse traversal
+        """
+        buffer = VideoSliceBufferReversible(dpath_slices_forward, dpath_slices_backward)
         return buffer
 
 
+# TODO work on this
 class VideoSliceBufferReversible(object):
-    def __init__(self, slicer_forward, slicer_backward):
+    def __init__(self, dpath_slices_forward: str, dpath_slices_backward: str):
+
+        slices_forward = nicely_sorted(os.listdir(dpath_slices_forward))
+        slices_backward = nicely_sorted(os.listdir(dpath_slices_backward))
 
         self.buffer_forward = deque(slicer_forward.slices)
         self.buffer_backward = deque(slicer_backward.slices[::-1])
@@ -330,9 +341,9 @@ def main():
         )
         dpath_slices_backward = controller.slice(fpath_encode_backward, args.superframe_size)
 
-    # TODO pick up here
-    buffer = controller.init_buffer(slicer_forward, slicer_backward)
+    buffer = controller.init_buffer(dpath_slices_forward, dpath_slices_backward)
 
+    # TODO pick up here
     initial_state = deepcopy(buffer.state)
     timeline = generate_timeline_function(
         args.superframe_size,
