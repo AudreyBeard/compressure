@@ -1,8 +1,6 @@
 from copy import deepcopy
 from collections import deque
-from pathlib import Path
 import logging
-import os
 from argparse import ArgumentParser
 from pprint import pformat
 
@@ -10,8 +8,8 @@ import ipdb  # noqa
 import numpy as np
 
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
-from compressure.persistence import CompressureManifest
-from compressure.valve import VideoSlicerDefaults, VideoSlicer
+from compressure.persistence import CompressurePersistence
+from compressure.valve import VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop
 from compressure.exceptions import (
     EncoderSelectionError,
@@ -21,12 +19,12 @@ from compressure.exceptions import (
 
 
 class CompressureSystem(object):
-    def __init__(self, fpath_manifest=CompressureManifest.defaults.fpath_manifest,
-                 workdir=CompressureManifest.defaults.workdir,
+    def __init__(self, fpath_manifest=CompressurePersistence.defaults.fpath_manifest,
+                 workdir=CompressurePersistence.defaults.workdir,
                  verbosity=1):
 
-        self.manifest = CompressureManifest(
-            fpath=fpath_manifest,
+        self.persistence = CompressurePersistence(
+            fpath_manifest=fpath_manifest,
             workdir=workdir,
             verbosity=verbosity
         )
@@ -43,7 +41,6 @@ class CompressureSystem(object):
                  workdir=VideoCompressionDefaults.workdir,
                  ):
 
-        os.makedirs(workdir, exist_ok=True)
         compressor = SingleVideoCompression(
             fpath_in=fpath_in,
             workdir=workdir,
@@ -52,20 +49,23 @@ class CompressureSystem(object):
             encoder_config=encoder_config
         )
         try:
-            encode = self.manifest.get_encode(
+            # First see if we've already encoded it
+            encode = self.persistence.get_encode(
                 fpath_source=fpath_in,
-                fpath_out=compressor.fpath_out,
+                fpath_encode=compressor.fpath_out,
             )
         except KeyError:
             self._log_print(
                 "No video found in persistent storage - creating now",
                 logging.info
             )
+            # If we haven't encoded, do that now
             fpath_out, _ = compressor.transcode_video()
-            ipdb.set_trace()
-            encode = self.manifest.add_encode(
+
+            # Add encoding to manifest and get entry back
+            encode = self.persistence.add_encode(
                 fpath_source=fpath_in,
-                fpath_out=fpath_out,
+                fpath_encode=fpath_out,
                 parameters=compressor.encoder_config_dict,
                 command=compressor.transcode_command
             )
@@ -74,7 +74,11 @@ class CompressureSystem(object):
                 logging.info
             )
 
-        return compressor, encode
+        # Return filepath for later use
+        return encode['fpath']
+
+    def remove_encode(self, fpath_source: str, fpath_encode: str) -> None:
+        self.persistence.remove_encode(fpath_source, fpath_encode)
 
     def _log_print(self, msg, log_op):
         if self.verbosity > 0:
@@ -82,20 +86,22 @@ class CompressureSystem(object):
 
         log_op(msg)
 
-    def slice(self, compressor, superframe_size=6, workdir_base=VideoSlicerDefaults.workdir):
-        workdir = workdir_base / Path(compressor.human_readable_name).stem
-        os.makedirs(workdir, exist_ok=True)
-        slicer = VideoSlicer(
-            fpath_in=compressor.fpath_out,
-            superframe_size=superframe_size,
-            workdir=workdir
-        )
-        slices = self.persistence.get_slices(compressor, slicer)
-        if slices is None:
-            slicer.slice_video()
-            self.persistence.add_slices(compressor, slicer)
+    # TODO redo this
+    def slice(self, fpath_source: str, fpath_encode: str, superframe_size: int = 6):
+        try:
+            slices = self.persistence.get_slices(fpath_source, fpath_encode, superframe_size)
+        except KeyError:
+            workdir = self.persistence.init_slices_dir(fpath_encode, superframe_size)
 
-        return slicer
+            slicer = VideoSlicer(
+                fpath_in=fpath_encode,
+                superframe_size=superframe_size,
+                workdir=workdir
+            )
+            slicer.slice_video()
+            slices = self.persistence.add_slices(fpath_source, fpath_encode, superframe_size)
+
+        return slices
 
     def init_buffer(self, slicer_forward, slicer_backward):
         buffer = VideoSliceBufferReversible(slicer_forward, slicer_backward)
