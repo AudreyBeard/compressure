@@ -35,11 +35,23 @@ class CompressureSystem(object):
         fpath_reverse_loop = reverse_loop(fpath_in)
         return fpath_reverse_loop
 
-    def compress(self, fpath_in, gop_size=6000,
-                 encoder=VideoCompressionDefaults.encoder,
-                 encoder_config={},
-                 workdir=VideoCompressionDefaults.workdir,
-                 ):
+    def compress(self,
+                 fpath_in: str,
+                 gop_size: int = 6000,
+                 encoder: str = VideoCompressionDefaults.encoder,
+                 encoder_config: dict = {},
+                 workdir: str = VideoCompressionDefaults.workdir,
+                 ) -> str:
+        """ Encodes video file with specified parameters
+            Parameters:
+                - fpath_in: video file path
+                - gop_size: group of pictures size (number of p-frames per i-frame)
+                - encoder: codec name, see VideoCompressionDefaults
+                - encoder_config: codec parameters, see VideoCompressionDefaults and ffmpeg docs
+                - workdir: location for encoded files
+            Returns:
+                - string filepath to encoded video
+        """
 
         compressor = SingleVideoCompression(
             fpath_in=fpath_in,
@@ -86,8 +98,18 @@ class CompressureSystem(object):
 
         log_op(msg)
 
-    # TODO redo this
-    def slice(self, fpath_source: str, fpath_encode: str, superframe_size: int = 6):
+    def slice(self, fpath_source: str, fpath_encode: str, superframe_size: int = 6) -> str:
+        """ Slices encoded video into short chunks, writing all to a location
+            defined by the persistence class.
+            NOTE that this method will create `ceil(n_frames(original) / superframe_size)`
+            video files, each `superframe_size` frames long.
+            Parameters:
+                - fpath_source: source path, used only for indexing into persistence object
+                - fpath_encode: encode path, the input file for slicing
+                - superframe_size: number of frames per slice.
+            Returns:
+                string directory path to slices
+        """
         try:
             slices = self.persistence.get_slices(fpath_source, fpath_encode, superframe_size)
         except KeyError:
@@ -291,20 +313,24 @@ def main():
         fpath_in_forward = args.fpath_in_forward
         fpath_in_backward = args.fpath_in_backward
 
-    compression_forward = controller.compress(
+    fpath_encode_forward = controller.compress(
         fpath_in_forward,
         gop_size=args.gop_size,
         encoder=args.encoder,
         encoder_config=encoder_config
     )
-    compression_backward = controller.compress(
-        fpath_in_backward,
-        gop_size=args.gop_size,
-        encoder=args.encoder,
-        encoder_config=encoder_config
-    )
-    slicer_forward = controller.slice(compression_forward, args.superframe_size)
-    slicer_backward = controller.slice(compression_backward, args.superframe_size)
+    dpath_slices_forward = controller.slice(fpath_encode_forward, args.superframe_size)
+
+    if fpath_in_backward:
+        fpath_encode_backward = controller.compress(
+            fpath_in_backward,
+            gop_size=args.gop_size,
+            encoder=args.encoder,
+            encoder_config=encoder_config
+        )
+        dpath_slices_backward = controller.slice(fpath_encode_backward, args.superframe_size)
+
+    # TODO pick up here
     buffer = controller.init_buffer(slicer_forward, slicer_backward)
 
     initial_state = deepcopy(buffer.state)

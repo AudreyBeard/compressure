@@ -4,8 +4,6 @@ import json
 import logging
 from typing import Optional, Union
 
-import ipdb
-
 from compressure.exceptions import PersistenceOverwriteError, ExistingSourceError
 
 logging.basicConfig(filename='.persistence.log', level=logging.DEBUG)
@@ -241,7 +239,6 @@ class CompressurePersistence(object):
             slices = self.manifest.add_slices(fpath_source, fpath_encode, superframe_size)
 
         if self.autosave:
-            ipdb.set_trace()
             self.save()
 
         return slices
@@ -409,6 +406,7 @@ class CompressureManifest(object):
 
     def get_slices_dir(self, fpath_encode: str, superframe_size: int) -> str:
         """ Gets the directory for a specific slice scheme on an encode
+            NOTE this may be a good candidate for a mounted RAMFS for a cache
         """
         dpath_slices = Path(fpath_encode).parent.parent / 'slices'
         dpath_parent = dpath_slices / Path(fpath_encode).stem / f'superframe-size={superframe_size}'
@@ -473,7 +471,7 @@ class CompressureManifest(object):
 
         encode = self.get_encode(fpath_source, fpath_encode)
         encode['slices']['superframe_size'] = {
-            superframe_size: self.get_slices_dir(fpath_encode, superframe_size)
+            superframe_size: str(self.get_slices_dir(fpath_encode, superframe_size))
         }
 
         # Reset lazy evaluation
