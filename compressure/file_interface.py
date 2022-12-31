@@ -23,5 +23,7 @@ def sort_nicely(strings: list) -> list:
 
 
 def nicely_sorted(strings: list) -> list:
+    """ Analog for sorted function for intuitive sorting
+    """
     sort_nicely(strings)
     return strings
