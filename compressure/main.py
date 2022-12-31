@@ -4,6 +4,7 @@ from collections import deque
 import logging
 from argparse import ArgumentParser
 from pprint import pformat
+from pathlib import Path
 
 import ipdb  # noqa
 import numpy as np
@@ -129,29 +130,41 @@ class CompressureSystem(object):
 
     def init_buffer(self,
                     dpath_slices_forward: str,
-                    dpath_slices_backward: str
+                    dpath_slices_backward: str,
+                    superframe_size: int,
                     ) -> "VideoSliceBufferReversible":
         """ Initializes video buffer for forward/reverse traversal
         """
-        buffer = VideoSliceBufferReversible(dpath_slices_forward, dpath_slices_backward)
+        buffer = VideoSliceBufferReversible(
+            dpath_slices_forward,
+            dpath_slices_backward,
+            superframe_size
+        )
         return buffer
 
 
 # TODO work on this
 class VideoSliceBufferReversible(object):
-    def __init__(self, dpath_slices_forward: str, dpath_slices_backward: str):
+    def __init__(self, dpath_slices_forward: str, dpath_slices_backward: str, superframe_size: int):
 
-        slices_forward = nicely_sorted(os.listdir(dpath_slices_forward))
-        slices_backward = nicely_sorted(os.listdir(dpath_slices_backward))
+        # TODO buffer needs parent directories for
+        slices_forward = nicely_sorted([
+            str(Path(dpath_slices_forward) / fname)
+            for fname in os.listdir(dpath_slices_forward)
+        ])
+        slices_backward = nicely_sorted([
+            str(Path(dpath_slices_backward) / fname)
+            for fname in os.listdir(dpath_slices_backward)
+        ])
 
-        self.buffer_forward = deque(slicer_forward.slices)
-        self.buffer_backward = deque(slicer_backward.slices[::-1])
+        self.buffer_forward = deque(slices_forward)
+        self.buffer_backward = deque(slices_backward[::-1])
 
         self.forward = True
         self.index = 0
 
-        self._velocity_numerator = slicer_forward.superframe_size
-        self._velocity_denominator = slicer_forward.superframe_size
+        self._velocity_numerator = superframe_size
+        self._velocity_denominator = superframe_size
 
     @property
     def state(self):
@@ -341,7 +354,7 @@ def main():
         )
         dpath_slices_backward = controller.slice(fpath_encode_backward, args.superframe_size)
 
-    buffer = controller.init_buffer(dpath_slices_forward, dpath_slices_backward)
+    buffer = controller.init_buffer(dpath_slices_forward, dpath_slices_backward, args.superframe_size)
 
     # TODO pick up here
     initial_state = deepcopy(buffer.state)
