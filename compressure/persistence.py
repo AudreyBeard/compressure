@@ -395,12 +395,16 @@ class CompressureManifest(object):
         """
         encode = self.get_encode(fpath_source, fpath_encode)
 
+        # Need two try-except clauses because JSON decoding doesn't do ints well
         try:
             slices = encode['slices']['superframe_size'][superframe_size]
         except KeyError:
-            encode_name = Path(fpath_encode).name
-            msg = f"Didn't find slices with superframe-size {superframe_size} for encode {encode_name} in manifest"  # noqa
-            raise KeyError(msg)
+            try:
+                slices = encode['slices']['superframe_size'][str(superframe_size)]
+            except KeyError:
+                encode_name = Path(fpath_encode).name
+                msg = f"Didn't find slices with superframe-size {superframe_size} for encode {encode_name} in manifest"  # noqa
+                raise KeyError(msg)
 
         return slices
 
