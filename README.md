@@ -53,9 +53,14 @@ The following assumes the reader is using MacOS or a Debian derivative and is re
 
 ## Installation
 First of all, make sure you have `ffmpeg` installed - on MacOS, you can use
-`brew install ffmpeg`, and on Debian derivatives you can use `apt-get install
-ffmpeg`. You don't need anything special here, so the builds distributed in
+`brew install ffmpeg`, and on Debian derivatives you can use `apt-get install ffmpeg`.
+You *probably* don't need anything special here, so the builds distributed in
 these main channels will suffice.
+
+If you're trying to do hardware acceleration, we suggest trying the builds
+distributed through these channels first, then install from source if
+necessary. Note that the `ffmpeg` developers recommend installing from source
+code, but that process is out of scope for this document.
 
 We strongly recommend using virtual environments. You can use any virtual
 environment system you like, but we build and test with `python -m venv
