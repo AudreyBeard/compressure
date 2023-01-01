@@ -103,19 +103,66 @@ compsys.compress(fpath_in)
 
 #### Using Custom Values
 ```python
-from compressure.main import CompressureSystem
-compsys = CompressureSystem(fpath_manifest, workdir, verbosity)
-fpath_in = "~/data/video/input/blooming-4.mov"
-compsys.compress(
-    fpath_in,
-    gop_size=1000,
-    encoder=libx264,
+from compressure.main import CompressureSystem, generate_timeline_function
+from compressure.dataproc import concat_videos
+from copy import deepcopy
+
+# Instantiate the controller (including persistent caching, encoding, slicing)
+controller = CompressureSystem(fpath_manifest, workdir, verbosity)
+
+# Forward and backward videos - could be different sources entirely!
+fpath_source_fwd = "~/data/video/input/blooming-4.mov"
+fpath_source_back = "~/data/video/input/blooming-4_reverse.mov"
+
+# Encode both - may replace all references to "compression" with "encoding"
+fpath_encode_fwd = controller.compress(
+    fpath_source_fwd,
+    gop_size=6000,
+    encoder='libx264',
     encoder_config={
-        'preset': veryslow,
+        'preset': 'veryslow',
         'qp': 31,
         'bf': 0,
-        },
-    )
+    },
+)
+fpath_encode_back = controller.compress(
+    fpath_source_back,
+    gop_size=6000,
+    encoder='libx264',
+    encoder_config={
+        'preset': 'veryslow',
+        'qp': 31,
+        'bf': 0,
+    },
+)
+
+# Slice both into "superframes" - very short (4-10 frames) video files,
+# each offset by one frame with respect to its neighbors 
+dpath_slices_fwd = controller.slice(
+    fpath_source=fpath_source_fwd,
+    fpath_encode=fpath_encode_fwd,
+    superframe_size=6,
+)
+dpath_slices_back = controller.slice(
+    fpath_source=fpath_source_back,
+    fpath_encode=fpath_encode_back,
+    superframe_size=6,
+)
+
+# Create "buffer" of all superframes, for scrubbing through the timeline by superframes
+buffer = controller.init_buffer(dpath_slices_fwd, dpath_slices_back, superframe_size=6)
+
+# Generate a timeline function, establishing how we're moving through the timeline.
+# TODO we want this to be controlled live, rather than a predefined function like so
+timeline = generate_timeline_function(6, len(buffer), frequency=0.5, n_superframes=100)
+
+# Now use the timeline to step through the video buffer
+video_list = [deepcopy(buffer.state)]
+for loc in timeline:
+    video_list.append(buffer.step(to=loc))
+
+# Finally, concatenate the videos!
+concat_videos(video_list, fpath_out="~/data/video/output/output.mov")
 ```
 
 This is where it starts to become an interesting experiment. We recommend playing around with this - use different presets, codecs, qp values, etc.!
