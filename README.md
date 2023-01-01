@@ -48,6 +48,116 @@ short collections of consecutive frames (1-10 frames, for instance), then
 moving through the timeline of superframes in a way that repeats or skips
 superframes, introducing artifacts and slowing or speeding-up movement.
 
+## How we exploit video encoding to yield interesting results 
+We mentioned above that we encode videos using references to previous frames,
+with the first frame in the video as the terminal frame. In the parlance of
+video compression, we're talking about I-frames a P-frames. P-frames are those
+which are encoded as derivatives of previous frames and itself as much as
+possible, while I-frames are those which are not encoded with any temporal
+dependencies. Modern video codecs also make use of B-frames (for bidirectional
+temporal dependencies), but we don't often use them in Compressure because they
+tend to manifest as stuttering which we find undesireable.
+
+In most use-cases, videos are encoded such that every ten frames or so is an
+I-frame, the justification being that they seek to minimize distortion (from
+approximating motion and residuals) and allow random access to different parts
+of the film. In codec world, this equates to a "group of pictures (gop) size)"
+of 10 (give or take). This yields the benefits above, but we eschew this in
+order to produce interesting artifacts. In our case, we set the `gop_size` to
+some absurdly large number, such that we never refresh the video feed with an
+I-frame, allowing artifacts to propagate. This technique actually comes from an
+artistic practice called "data moshing," which is how the Compressure project
+started.
+
+Datamoshing usually involves taking two or more videos, removing the I-frames
+of the second, and concatenating it with the first to produce motion from the
+second, on top of imagery from the first. We diverge from the standard
+datamoshing practice by taking a single video and slicing it into *many*
+shorter videos, selecting a subset of them, and concatenating them again. The
+artifacting comes from moving through the video timeline (one slice at a time)
+at a faster or slower rate. To illustrate the slicing and traversal project, we've made a few small diagrams illustrating it:
+
+```
+Standard Video, 30 frames long
+
+start                        end
+<---------------------------->
+
+
+26 Sliced videos, each 5 frames long
+ 0 <--->
+ 1  <--->
+ 2   <--->
+ 3    <--->
+ 4     <--->
+ 5      <--->
+ 6       <--->
+ 7        <--->
+ 8         <--->
+ 9          <--->
+10           <--->
+11            <--->
+12             <--->
+13              <--->
+14               <--->
+15                <--->
+16                 <--->
+17                  <--->
+18                   <--->
+19                    <--->
+20                     <--->
+21                      <--->
+22                       <--->
+23                        <--->
+24                         <--->
+25                          <--->
+
+Moving through timeline (via slices) at standard speed, yielding no (or minimal) artifacting
+ 0 <--->
+ 5      <--->
+10           <--->
+15                <--->
+20                     <--->
+25                          <--->
+
+Moving through timeline (via slices) at 140% speed, yielding some artifacts, faster motion, and a shorter video
+ 0 <--->
+ 7        <--->
+14               <--->
+21                      <--->
+                     
+Moving through timeline (via slices) at 60% speed, yielding some artifacts, slower motion, and a longer video
+ 0 <--->
+ 3    <--->
+ 6       <--->
+ 9          <--->
+12             <--->
+15                <--->
+18                   <--->
+21                      <--->
+24                         <--->
+
+Moving through timeline (via slices) at standard speed, then reversing, yielding no (or minimal) artifacting (if we supplied a reversed video as input as well)
+ 0 <--->
+ 5      <--->
+10           <--->
+15                <--->
+20                     <--->
+25                          <--->
+20                     <--->
+15                <--->
+10           <--->
+ 5      <--->
+ 0 <--->
+```
+
+As we can see above, each slice is offset by 1 frame w.r.t. its neighbors, so we can grab any slice we want. If we want to reproduce the source exactly, we simply grab each non-overlapping slice, and the output is the same length of the input. Skipping parts of the source between each concatenated slice yields faster motion (shorter video if we don't repeat) and repeating frames by selecting overlapping slices yields slower motion (longer video if we move through the whole timeline linearly).
+
+Of course this begs the question: "what if we arbitrarily move through the timeline?" That's what we're exploring here! We currently use a function that generates a timeline according to a sinusoid. You can try this yourself following the instructions of a later section.
+
+You'll find, as you play around with different codecs (sometimes called `encoder`s in this project), and codec parameters (`encoder_config`), that different codecs produce wildly different artifacts, and tweaking various codec parameters can result in unexpected changes in the finished product. In a later section, we'll discuss some of our findings.
+
+
 # Quickstart
 The following assumes the reader is using MacOS or a Debian derivative and is relatively familiar with managing their machine. We don't currently support Windows, and if you use something like CentOS, BSD, or Arch, you can likely figure out how to translate these commands.
 
@@ -93,6 +203,17 @@ Compressure defaults to filesystem locations, encoding schemes, and hyperparamet
         - `h264_videotoolbox` is the [MacOS hardware-accelerated codec for H.264](https://developer.apple.com/documentation/videotoolbox). In our experiments with it in this context, it's not particularly impactful
         - `-b:v` is the target bitrate, which we specify as `bitrate` in Python for readability
     - GoP size is the "group of pictures" size, specifying the maximum number of frames to place between intra-frames. Lower numbers will "reset" the video to a normal-looking state more frequently, higher numbers will propagate artifacts for longer (more abstract). This corresponds to the ffmpeg option `-g`
+- Encoded videos later get sliced into "superframes" - very short (4-10 frames)
+  chunks that are each offset by one second w.r.t. their temporal neighbors. We
+  can move through the timeline one superframe at a time, to see a kind of
+  quantized (in the sense of atomic packets, not necessarily discretized)
+  motion. We find that `superframe_size` is best tweaked differently for each
+  asset, based on how much motion is captured in the video, as well as the
+  inherent framerate of the video. We usually start with 6, since it's a factor
+  of 24, 30, and 60 (three common framerates for video). A superframe size of 6
+  will yield slices of 0.25 seconds, 0.2 seconds, and 0.1 seconds respectively.
+  Superframe size does NOT need to be a factor of framerate, though we think
+  the result looks best when it's less than 0.5 seconds.
 
 
 ### Note about persistent caching
@@ -243,3 +364,6 @@ python main.py \
 ```
 
 The above will do exactly what we're doing above, from the command line. This may be the fastest way of interacting with it
+
+# Experimental Results
+TODO
