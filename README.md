@@ -90,16 +90,70 @@ Compressure defaults to filesystem locations, encoding schemes, and hyperparamet
     - GoP size is the "group of pictures" size, specifying the maximum number of frames to place between intra-frames. Lower numbers will "reset" the video to a normal-looking state more frequently, higher numbers will propagate artifacts for longer (more abstract). This corresponds to the ffmpeg option `-g`
 
 
+### Note about persistent caching
+The compressure system makes extensive use of persistent caching to avoid
+redunant encoding and slicing operations. By default, these are kept in
+`~/.cache/compressure` and tracked in `~/.cache/compressure/manifest.json`.
+
+The `compressure.persistence.CompressurePersistence` class is the object we use
+for tracking all these versions. Unfortunately, the manifest doesn't
+automatically scan the persistence directory at startup, so any versions
+deleted outside the Compressure app won't be reflected in the manifest. The
+best way to add or remove entries to the persistent cache is to use the
+persistence object referenced at the top of this paragraph.
+
+You can manually set the persistence directory by specifying `fpath_manifest`
+and `workdir` when instantiating the `compressure.main.CompressureSystem`
+object. There is currently no command-line support for this operation.
+
+
 ### Interactive Python Session
 This is the "manual" mode that gives you the most control and responsibility. It is the preferred mode of development. The specifics will be different based on your system, but it likely will look something like this:
 
 #### Using Default values
 ```python
 from compressure.main import CompressureSystem
-compsys = CompressureSystem()
-fpath_in = "~/data/video/input/blooming-4.mov"
-compsys.compress(fpath_in)
+controller = CompressureSystem()
+
+# Forward and backward videos - could be different sources entirely!
+fpath_source_fwd = "~/data/video/input/blooming-4.mov"
+fpath_source_back = "~/data/video/input/blooming-4_reverse.mov"
+
+# Encode both - may replace all references to "compression" with "encoding"
+fpath_encode_fwd = controller.compress(fpath_source_fwd)
+fpath_encode_back = controller.compress(fpath_source_back)
+
+dpath_slices_fwd = controller.slice(
+    fpath_source=fpath_source_fwd,
+    fpath_encode=fpath_encode_fwd,
+    superframe_size=6,
+)
+dpath_slices_back = controller.slice(
+    fpath_source=fpath_source_back,
+    fpath_encode=fpath_encode_back,
+    superframe_size=6,
+)
+
+# Create "buffer" of all superframes, for scrubbing through the timeline by superframes
+buffer = controller.init_buffer(dpath_slices_fwd, dpath_slices_back, superframe_size=6)
+
+# Generate a timeline function, establishing how we're moving through the timeline.
+# TODO we want this to be controlled live, rather than a predefined function like so
+timeline = generate_timeline_function(6, len(buffer), frequency=0.5, n_superframes=100)
+
+# Now use the timeline to step/traverse through the video buffer
+video_list = [deepcopy(buffer.state)]
+for loc in timeline:
+    video_list.append(buffer.step(to=loc))
+
+# Finally, concatenate the videos!
+concat_videos(video_list, fpath_out="~/data/video/output/output.mov")
 ```
+
+We don't currently have a more tightly-integrated traversal tool, because we're
+hoping to replace it with something more playable. Unfortunately, this means
+we're not putting much energy into tightening-up the traversal
+
 
 #### Using Custom Values
 ```python
@@ -165,8 +219,22 @@ for loc in timeline:
 concat_videos(video_list, fpath_out="~/data/video/output/output.mov")
 ```
 
-This is where it starts to become an interesting experiment. We recommend playing around with this - use different presets, codecs, qp values, etc.!
+This is where it starts to become an interesting experiment. We recommend playing around with this - use different presets, codecs, qp values, bitrates, superframe sizes, timeline functions, etc.!
+
+Once we have a GUI and support live video creation, the experimentation process will be much faster!
 
 ### Command Line
 ```bash
+python main.py \
+  -f ~/data/video/input/blooming-4.mov \
+  -b ~/data/video/input/blooming-4_reverse.mov \
+  -g 6000 \
+  --encoder libx264 \
+  --encoder_config preset veryslow qp 31 bf 0 \
+  --superframe_size 6 \
+  --frequency 0.5 \
+  --n_superframes 100 \
+  -o ~/data/video/output/output.mov
 ```
+
+The above will do exactly what we're doing above, from the command line. This may be the fastest way of interacting with it
