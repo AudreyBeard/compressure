@@ -33,7 +33,7 @@ class VideoSlicer(object):
         self.video_metadata = VideoMetadata(self.fpath_in)
         self.superframe_size = superframe_size
         self.slice_duration = self.superframe_size / self.video_metadata.fps
-        self.workdir = str(Path(workdir) / self.human_readable_string)
+        self.workdir = str(Path(workdir))
         os.makedirs(self.workdir, exist_ok=True)
 
         self._init_start_times()

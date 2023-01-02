@@ -6,6 +6,11 @@ class PersistenceOverwriteError(Exception):
         super().__init__(f"""{compressor} exists in persistence - try using overwrite flag""", *args, **kwargs)
 
 
+class ExistingSourceError(Exception):
+    def __init__(self, manifest_obj, fpath_source):
+        super().__init__(f"{fpath_source} already exists in manifest {manifest_obj}")
+
+
 class InferredAttributeFromFileError(Exception):
     def __init__(self, attribute, fpath, *args, **kwargs):
         super().__init__(f"""{attribute} is inferred from {fpath} and \
