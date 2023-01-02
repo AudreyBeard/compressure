@@ -343,7 +343,11 @@ def main():
         encoder=args.encoder,
         encoder_config=encoder_config
     )
-    dpath_slices_forward = controller.slice(fpath_encode_forward, args.superframe_size)
+    dpath_slices_forward = controller.slice(
+        fpath_source=fpath_in_forward,
+        fpath_encode=fpath_encode_forward,
+        superframe_size=args.superframe_size
+    )
 
     if fpath_in_backward:
         fpath_encode_backward = controller.compress(
@@ -352,7 +356,11 @@ def main():
             encoder=args.encoder,
             encoder_config=encoder_config
         )
-        dpath_slices_backward = controller.slice(fpath_encode_backward, args.superframe_size)
+        dpath_slices_backward = controller.slice(
+            fpath_source=fpath_in_backward,
+            fpath_encode=fpath_encode_backward,
+            superframe_size=args.superframe_size
+        )
 
     buffer = controller.init_buffer(dpath_slices_forward, dpath_slices_backward, args.superframe_size)
 
