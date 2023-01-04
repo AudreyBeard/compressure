@@ -77,14 +77,15 @@ shorter videos, selecting a subset of them, and concatenating them again. The
 artifacting comes from moving through the video timeline (one slice at a time)
 at a faster or slower rate. To illustrate the slicing and traversal project, we've made a few small diagrams illustrating it:
 
-```
 Standard Video, 30 frames long
-
+```
 start                        end
 <---------------------------->
+```
 
 
 26 Sliced videos, each 5 frames long
+```
  0 <--->
  1  <--->
  2   <--->
@@ -111,22 +112,28 @@ start                        end
 23                        <--->
 24                         <--->
 25                          <--->
+```
 
 Moving through timeline (via slices) at standard speed, yielding no (or minimal) artifacting
+```
  0 <--->
  5      <--->
 10           <--->
 15                <--->
 20                     <--->
 25                          <--->
+```
 
+```
 Moving through timeline (via slices) at 140% speed, yielding some artifacts, faster motion, and a shorter video
  0 <--->
  7        <--->
 14               <--->
 21                      <--->
-                     
+```
+
 Moving through timeline (via slices) at 60% speed, yielding some artifacts, slower motion, and a longer video
+```
  0 <--->
  3    <--->
  6       <--->
@@ -136,8 +143,10 @@ Moving through timeline (via slices) at 60% speed, yielding some artifacts, slow
 18                   <--->
 21                      <--->
 24                         <--->
+```
 
 Moving through timeline (via slices) at standard speed, then reversing, yielding no (or minimal) artifacting (if we supplied a reversed video as input as well)
+```
  0 <--->
  5      <--->
 10           <--->
@@ -157,6 +166,90 @@ Of course this begs the question: "what if we arbitrarily move through the timel
 
 You'll find, as you play around with different codecs (sometimes called `encoder`s in this project), and codec parameters (`encoder_config`), that different codecs produce wildly different artifacts, and tweaking various codec parameters can result in unexpected changes in the finished product. In a later section, we'll discuss some of our findings.
 
+### Using nonlinear timeline functions
+The timeline function we've currently implemented is a rectified sine wave, with variable frequency. The way we implement that is by generating a discrete sine function, scale it to the total number of slices, and use that to index a slice. For example, here's some simple code that uses the values we established above:
+```python
+>>> from compressure.main import generate_timeline_function
+>>> generate_timeline_function(
+...     superframe_size=5,
+...     len_lvb=26, 
+...     n_superframes=6,
+...     frequency=0.5
+...     )
+array([ 0, 14, 23, 23, 14, 0 ])
+```
+The above timeline function corresponds to the following video ordering:
+```
+ 0 <--->
+14               <--->
+23                        <--->
+23                        <--->
+14               <--->
+ 0 <--->
+```
+
+Another example:
+```python
+>>> generate_timeline_function(
+...     superframe_size=5,
+...     len_lvb=26,
+...     n_superframes=13,
+...     frequency=1
+...     )
+array([ 0, 12, 21, 25, 21, 12, 0, 12, 21, 25, 21, 12, 0 ])
+```
+which corresponds to 
+```
+ 0 <--->
+12             <--->
+21                      <--->
+25                          <--->
+21                      <--->
+12             <--->
+ 0 <--->
+12             <--->
+21                      <--->
+25                          <--->
+21                      <--->
+12             <--->
+ 0 <--->
+```
+Finally, here's an example with higher resolution:
+```python
+>>> generate_timeline_function(
+...     superframe_size=5,
+...     len_lvb=26,
+...     n_superframes=21,
+...     frequency=0.5
+...     )
+array([ 0, 3, 7, 11, 14, 17, 20, 22, 23, 24, 25, 24, 23, 22, 20, 17, 14, 11, 7, 3, 0 ])
+```
+and the visual representation:
+```
+ 0 <--->
+ 3    <--->
+ 7        <--->
+11            <--->
+14               <--->
+17                  <--->
+20                     <--->
+22                       <--->
+23                        <--->
+24                         <--->
+25                          <--->
+24                         <--->
+23                        <--->
+22                       <--->
+20                     <--->
+17                  <--->
+14               <--->
+11            <--->
+ 7        <--->
+ 3    <--->
+ 0 <--->
+```
+
+You can see from the above that the selection of this function is designed to show off the variable speed and directionality afforded by the compressure system.
 
 # Quickstart
 The following assumes the reader is using MacOS or a Debian derivative and is relatively familiar with managing their machine. We don't currently support Windows, and if you use something like CentOS, BSD, or Arch, you can likely figure out how to translate these commands.
