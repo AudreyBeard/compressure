@@ -116,6 +116,7 @@ class CompressureSystem(object):
         try:
             slices = self.persistence.get_slices(fpath_source, fpath_encode, superframe_size)
         except KeyError:
+            ipdb.set_trace()
             workdir = self.persistence.init_slices_dir(fpath_encode, superframe_size)
 
             slicer = VideoSlicer(

@@ -22,6 +22,11 @@ class VideoCompressionDefaults(object):
             "qp": -1,
             "bf": 0,
         },
+        "libx265": {
+            "preset": "veryfast",
+            "qp": -1,
+            "bf": 0,
+        },
         "h264_videotoolbox": {
             "bf": 0,
             "bitrate": "10M",
@@ -149,6 +154,10 @@ class SingleVideoCompression(object):
             ffmpeg_args.extend([
                 "-bf", str(configs['bf']),
                 "-b:v", str(configs['bitrate']),
+            ])
+        elif self.encoder == "libx265":
+            ffmpeg_args.extend([
+                # "-tag:v", "hvc1",
             ])
         return ffmpeg_args
 
