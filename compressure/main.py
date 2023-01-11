@@ -116,6 +116,7 @@ class CompressureSystem(object):
         try:
             slices = self.persistence.get_slices(fpath_source, fpath_encode, superframe_size)
         except KeyError:
+            ipdb.set_trace()
             workdir = self.persistence.init_slices_dir(fpath_encode, superframe_size)
 
             slicer = VideoSlicer(
@@ -224,13 +225,23 @@ class VideoSliceBufferReversible(object):
 
 def generate_timeline_function(superframe_size, len_lvb,
                                n_superframes=500, category="sinusoid",
-                               frequency=1):
+                               frequency=1, scaled=False, rectified=True):
     if category == "sinusoid":
-        locations = np.sin(
+        if scaled and rectified:
+            raise ValueError("either scaled or rectified must be False")
+
+        locations = -np.cos(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
-        ) * (len_lvb - 1)
-        locations[locations < 0] = -locations[locations < 0]
+        )
+        if rectified:
+            locations[locations < 0] = -locations[locations < 0]
+            locations = locations * (len_lvb - 1)
+        elif scaled:
+            locations = (locations - locations.min()) / (locations.max() - locations.min())
+            locations = locations * (len_lvb - 2) + 1
+
         return locations.astype(int)
+
     elif category == "compound-sinusoid":
         locations = np.sin(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
@@ -298,6 +309,16 @@ def parse_args():
         help="how many superframes?"
     )
     parser.add_argument(
+        '--scaled',
+        action="store_true",
+        help="should we scale the timeline such that it's never negative? mutually exclusive with --rectified"
+    )
+    parser.add_argument(
+        '--rectified',
+        action="store_true",
+        help="should we rectify the timeline such that it's never negative? mutually exclusive with --scaled"
+    )
+    parser.add_argument(
         "-o", "--fpath_out",
         default="output.avi",
         help="Output filepath. Should have '.avi' extension in most circumstances."
@@ -321,7 +342,9 @@ def parse_args():
             If left unspecified, default values will be used for the following encoders:
             {pformat(VideoCompressionDefaults.encoder_config_options)}"""
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    assert args.scaled or args.rectified
+    return args
 
 
 def main():
@@ -370,7 +393,9 @@ def main():
         args.superframe_size,
         len(buffer),
         frequency=args.frequency,
-        n_superframes=args.n_superframes - 1
+        n_superframes=args.n_superframes - 1,
+        scaled=args.scaled,
+        rectified=args.rectified
     )
 
     if timeline[0] == initial_state:
