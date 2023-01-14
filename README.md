@@ -254,6 +254,13 @@ You can see from the above that the selection of this function is designed to sh
 # Quickstart
 The following assumes the reader is using MacOS or a Debian derivative and is relatively familiar with managing their machine. We don't currently support Windows, and if you use something like CentOS, BSD, or Arch, you can likely figure out how to translate these commands.
 
+## Docker
+The easiest thing to do is simply install via Docker:
+```bash
+docker build -t compressure .
+docker run -it --entrypoint "bash" compressure
+```
+
 ## Installation
 First of all, make sure you have `ffmpeg` installed - on MacOS, you can use
 `brew install ffmpeg`, and on Debian derivatives you can use `apt-get install ffmpeg`.
