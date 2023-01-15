@@ -188,6 +188,8 @@ class CompressurePersistence(object):
         # This is where we'll dump encodes
         self.workdir = str(Path(workdir).expanduser())
         os.makedirs(self.workdir, exist_ok=True)
+        os.makedirs(Path(self.workdir) / 'encodes', exist_ok=True)
+        os.makedirs(Path(self.workdir) / 'slices', exist_ok=True)
 
         self.autosave = autosave
         self.overwrite = overwrite
