@@ -371,6 +371,8 @@ def main():
     dpaths_slices_forward = [None for _ in fpath_in_forward]
     fpaths_encode_backward = [None for _ in fpath_in_forward]
     dpaths_slices_backward = [None for _ in fpath_in_forward]
+
+    # For each path provided in forward
     for i, fpath in enumerate(fpath_in_forward):
         fpaths_encode_forward[i] = controller.compress(
             fpath,
@@ -424,15 +426,23 @@ def main():
     else:
         video_list = [initial_state]
 
-    ipdb.set_trace()
+    # Which buffer is active?
     buffer_index = 0
+
+    step_all = False
+
+    # These should be equal but we take min just in case
     n_locations = min([len(t) for t in timelines])
     for timeline_index in range(n_locations):
-        buffer_states = [
-            buffer.step(to=timeline[timeline_index])
-            for buffer, timeline in zip(buffers, timelines)
-        ]
-        video_list.append(buffer_states[buffer_index])
+
+        if step_all:
+            buffer_states = [
+                buffer.step(to=timeline[timeline_index])
+                for buffer, timeline in zip(buffers, timelines)
+            ]
+            video_list.append(buffer_states[buffer_index])
+        else:
+            video_list.append(buffers[buffer_index].step(to=timelines[buffer_index][timeline_index]))
 
         if np.random.rand() > args.markov_p:
             buffer_index = (buffer_index + 1) % len(timelines)
