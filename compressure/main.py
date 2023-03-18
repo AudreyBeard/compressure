@@ -43,7 +43,7 @@ class CompressureSystem(object):
                  gop_size: int = 6000,
                  encoder: str = VideoCompressionDefaults.encoder,
                  encoder_config: dict = {},
-                 workdir: str = VideoCompressionDefaults.workdir,
+                 workdir: str = None,
                  ) -> str:
         """ Encodes video file with specified parameters
             Parameters:
@@ -55,6 +55,8 @@ class CompressureSystem(object):
             Returns:
                 - string filepath to encoded video
         """
+
+        workdir = workdir if workdir is not None else self.persistence.workdir
 
         compressor = SingleVideoCompression(
             fpath_in=fpath_in,
@@ -349,6 +351,16 @@ def parse_args():
             If left unspecified, default values will be used for the following encoders:
             {pformat(VideoCompressionDefaults.encoder_config_options)}"""
     )
+    parser.add_argument(
+        "--fpath_manifest",
+        default=CompressurePersistence.defaults.fpath_manifest,
+        help="location of manifest file, which contains all transcode and slice metadata",
+    )
+    parser.add_argument(
+        "--dpath_workdir",
+        default=CompressurePersistence.defaults.workdir,
+        help="location for intermediate files, such as transcodes and slices"
+    )
     args = parser.parse_args()
     assert args.scaled or args.rectified
     return args
@@ -356,7 +368,10 @@ def parse_args():
 
 def main():
     args = parse_args()
-    controller = CompressureSystem()
+    controller = CompressureSystem(
+        fpath_manifest=args.fpath_manifest,
+        workdir=args.dpath_workdir
+    )
     encoder_config = construct_encoder_config(args.encoder, args.encoder_config)
     if args.pre_reverse_loop:
         raise NotImplementedError("reverse-looping needs work. don't use it")
