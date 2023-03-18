@@ -288,11 +288,13 @@ def parse_args():
     parser.add_argument(
         '-f', "--fpath_in_forward",
         required=True,
+        nargs="+",
         help="forward source video from which to sample"
     )
     parser.add_argument(
         '-b', "--fpath_in_backward",
         required=True,
+        nargs="+",
         help="backward source video from which to sample"
     )
     parser.add_argument(
@@ -300,6 +302,12 @@ def parse_args():
         default=0.5,
         type=float,
         help="frequency (wrt video length) of sinusoidal timeline"
+    )
+    parser.add_argument(
+        "--markov_p",
+        default=0.75,
+        type=float,
+        help="probability of staying on current video"
     )
     parser.add_argument(
         "--n_superframes",
@@ -359,51 +367,85 @@ def main():
         fpath_in_forward = args.fpath_in_forward
         fpath_in_backward = args.fpath_in_backward
 
-    fpath_encode_forward = controller.compress(
-        fpath_in_forward,
-        gop_size=args.gop_size,
-        encoder=args.encoder,
-        encoder_config=encoder_config
-    )
-    dpath_slices_forward = controller.slice(
-        fpath_source=fpath_in_forward,
-        fpath_encode=fpath_encode_forward,
-        superframe_size=args.superframe_size
-    )
+    fpaths_encode_forward = [None for _ in fpath_in_forward]
+    dpaths_slices_forward = [None for _ in fpath_in_forward]
+    fpaths_encode_backward = [None for _ in fpath_in_forward]
+    dpaths_slices_backward = [None for _ in fpath_in_forward]
 
-    if fpath_in_backward:
-        fpath_encode_backward = controller.compress(
-            fpath_in_backward,
+    # For each path provided in forward
+    for i, fpath in enumerate(fpath_in_forward):
+        fpaths_encode_forward[i] = controller.compress(
+            fpath,
             gop_size=args.gop_size,
             encoder=args.encoder,
             encoder_config=encoder_config
         )
-        dpath_slices_backward = controller.slice(
-            fpath_source=fpath_in_backward,
-            fpath_encode=fpath_encode_backward,
+        dpaths_slices_forward[i] = controller.slice(
+            fpath_source=fpath,
+            fpath_encode=fpaths_encode_forward[i],
             superframe_size=args.superframe_size
         )
 
-    buffer = controller.init_buffer(dpath_slices_forward, dpath_slices_backward, args.superframe_size)
+    if fpath_in_backward:
+        for i, fpath in enumerate(fpath_in_backward):
+            fpaths_encode_backward[i] = controller.compress(
+                fpath,
+                gop_size=args.gop_size,
+                encoder=args.encoder,
+                encoder_config=encoder_config
+            )
+            dpaths_slices_backward[i] = controller.slice(
+                fpath_source=fpath,
+                fpath_encode=fpaths_encode_backward[i],
+                superframe_size=args.superframe_size
+            )
+
+    dpaths_slices = zip(dpaths_slices_forward, dpaths_slices_backward)
+    buffers = []
+    for i, (dpath_slices_forward, dpath_slices_backward) in enumerate(dpaths_slices):
+
+        buffers.append(controller.init_buffer(
+            dpath_slices_forward,
+            dpath_slices_backward,
+            args.superframe_size
+        ))
 
     # TODO pick up here
-    initial_state = deepcopy(buffer.state)
-    timeline = generate_timeline_function(
+    initial_state = deepcopy(buffers[0].state)
+    timelines = [generate_timeline_function(
         args.superframe_size,
         len(buffer),
         frequency=args.frequency,
         n_superframes=args.n_superframes - 1,
         scaled=args.scaled,
         rectified=args.rectified
-    )
+    ) for buffer in buffers]
 
-    if timeline[0] == initial_state:
+    if timelines[0][0] == initial_state:
         video_list = []
     else:
         video_list = [initial_state]
 
-    for loc in timeline:
-        video_list.append(buffer.step(to=loc))
+    # Which buffer is active?
+    buffer_index = 0
+
+    step_all = False
+
+    # These should be equal but we take min just in case
+    n_locations = min([len(t) for t in timelines])
+    for timeline_index in range(n_locations):
+
+        if step_all:
+            buffer_states = [
+                buffer.step(to=timeline[timeline_index])
+                for buffer, timeline in zip(buffers, timelines)
+            ]
+            video_list.append(buffer_states[buffer_index])
+        else:
+            video_list.append(buffers[buffer_index].step(to=timelines[buffer_index][timeline_index]))
+
+        if np.random.rand() > args.markov_p:
+            buffer_index = (buffer_index + 1) % len(timelines)
 
     print(f"Concatenating {len(video_list)} videos")
     concat_videos(video_list, fpath_out=args.fpath_out)
