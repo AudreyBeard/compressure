@@ -64,6 +64,43 @@ def reverse_loop(fpath_in, fpath_out=None):
     return fpath_out
 
 
+def change_speed(fpath_in, fps_new, codec, fpath_out=None):
+    fpath_in_ = Path(fpath_in)
+    if fpath_out is None:
+        fpath_out = str(fpath_in_.with_stem(f"{fpath_in_.stem}_{fps_new:.2f}"))
+    # TODO pick up here
+    if codec == 'h264':
+        fpath_intermediate = "raw.h264"
+        bitstream_filter = "h264_mp4toannexb"
+
+    elif codec == 'h265':
+        fpath_intermediate = "raw.h265"
+        bitstream_filter = "hevc_mp4toannexb"
+    else:
+        raise ValueError(f"can only speed/slow h264- or h265-encoded videos, not {codec}")
+
+    intermediate_command = [
+        "ffmpeg", "-y",
+        "-i", str(fpath_in_),
+        "-map", "0:v",
+        "-c:v", "copy",
+        "-bsf:v", bitstream_filter,
+        fpath_intermediate
+    ]
+    final_command = [
+        "ffmpeg", "-y",
+        "-fflags", "+genpts",
+        "-r", str(fps_new),
+        "-i", fpath_intermediate,
+        "-c:v", "copy",
+        fpath_out
+    ]
+    try_subprocess(intermediate_command)
+    try_subprocess(final_command)
+
+    return fpath_out
+
+
 class VideoMetadata(object):
     """ Lazy metadata fetcher for videos
     """
@@ -75,6 +112,7 @@ class VideoMetadata(object):
         self._height = None
         self._width = None
         self._duration = None
+        self._codec = None
 
     @property
     def pix_fmt(self):
@@ -193,3 +231,17 @@ class VideoMetadata(object):
             self._duration = float(try_subprocess(command).stdout)
 
         return self._duration
+
+    @property
+    def codec(self):
+        if self._codec is None:
+            command = [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_name",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(self.fpath)
+            ]
+            self._codec = try_subprocess(command).stdout.strip()
+        return self._codec
