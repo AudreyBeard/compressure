@@ -1,6 +1,8 @@
 import logging
-import subprocess
+import os
 from pathlib import Path
+import subprocess
+from typing import Sequence
 
 from compressure.exceptions import InferredAttributeFromFileError, SubprocessError
 
@@ -8,7 +10,9 @@ from compressure.exceptions import InferredAttributeFromFileError, SubprocessErr
 logging.basicConfig(filename='.dataproc.log', level=logging.DEBUG)
 
 
-def try_subprocess(command):
+def try_subprocess(
+    command: Sequence[str]
+) -> subprocess.CompletedProcess:
     process = subprocess.run(command, capture_output=True, encoding='utf-8')
     if process.returncode != 0:
         raise SubprocessError(process)
@@ -95,8 +99,13 @@ def change_speed(fpath_in, fps_new, codec, fpath_out=None):
         "-c:v", "copy",
         fpath_out
     ]
-    try_subprocess(intermediate_command)
-    try_subprocess(final_command)
+    try:
+        try_subprocess(intermediate_command)
+        try_subprocess(final_command)
+    except SubprocessError:
+        raise
+    else:
+        os.remove(fpath_intermediate)
 
     return fpath_out
 
@@ -245,3 +254,90 @@ class VideoMetadata(object):
             ]
             self._codec = try_subprocess(command).stdout.strip()
         return self._codec
+
+
+class PixelFormatter(object):
+    def __init__(self):
+        self._set_pixel_formats()
+
+    def _set_pixel_formats(self):
+        """ Runs ffmpeg to get all pix_fmts and creates a lookup for pix_fmt metadata
+        """
+        cmd = [
+            "ffmpeg",
+            "-loglevel", "panic",
+            "-pix_fmts"
+        ]
+        lines = try_subprocess(cmd).stdout.strip().split("\n")
+        for i, line in enumerate(lines):
+            if line == "-----":
+                break
+        lines = lines[i + 1:]
+        # permissible_in = [line for line in lines if line[0] == "I"]
+        # permissible_out = [line for line in lines if line[1] == "O"]
+        self.metadata_lookup = {}
+        for line in lines:
+            line_ = line.split()
+            self.metadata_lookup[line_[1]] = {
+                "flags": line_[0],
+                "nb_components": int(line_[2]),
+                "bits_per_pixel": int(line_[3]),
+                "bit_depths": [int(x) for x in line_[4].split('-')],
+            }
+
+    def get_common_pix_fmt(
+        self,
+        pix_fmts: Sequence[str]
+    ) -> str:
+        """ Determines best possible (and easy-to-use) pix_fmt among all
+            options, without attempting to upsample or anything
+        """
+        channel_fmt = 'yuv'
+        bits_per_pixel = max([fmt['bits_per_pixel'] for fmt in self.metadata_lookup.values()])
+        n_little_endian = 0
+        n_big_endian = 0
+        use_alpha = False
+        bit_depth = bits_per_pixel
+
+        for pix_fmt in pix_fmts:
+            md = self.metadata_lookup[pix_fmt]
+
+            # Minimum bits per pixel & bit depth
+            bits_per_pixel = min(bits_per_pixel, md['bits_per_pixel'])
+            bit_depth = min(bit_depth, max(md['bit_depths']))
+
+            # Count little-endian
+            if pix_fmt.endswith('le'):
+                n_little_endian += 1
+
+            # Count big-endian
+            if pix_fmt.endswith('be'):
+                n_big_endian += 1
+
+            if len(md['bit_depths']) > 3:
+                use_alpha = True
+
+        # Start constructing the common pixel_format
+        common_pix_fmt = channel_fmt
+
+        # NOTE no support for alpha yet - it clashes with heuristic below
+        if use_alpha and False:
+            common_pix_fmt += "a"
+
+        # Heuristic for determining chroma subsampling
+        if bits_per_pixel / bit_depth >= 3:
+            common_pix_fmt += "444p"
+        elif bits_per_pixel / bit_depth >= 2:
+            # NOTE this coerces 440 to 422
+            common_pix_fmt += "422p"
+        elif bits_per_pixel / bit_depth >= 1.5:
+            common_pix_fmt += "420p"
+        else:
+            raise ValueError(f"cannot infer common pix_fmt from {pix_fmts}")
+
+        # Bitdepth modifier
+        if bit_depth > 8:
+            common_pix_fmt += str(int(bit_depth))
+            common_pix_fmt += "le" if n_little_endian >= n_big_endian else "be"
+
+        return common_pix_fmt
