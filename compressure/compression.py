@@ -1,12 +1,16 @@
 from argparse import ArgumentParser
-from pathlib import Path
-import logging
 from copy import deepcopy
+import logging
+import os
+from pathlib import Path
 from pprint import pformat
+from typing import Optional, Union
 
 from compressure.dataproc import try_subprocess
-from compressure.persistence import VideoCompressionPersistenceDefaults, VideoCompressionPersistence
 from compressure.exceptions import EncoderSelectionError
+from compressure.persistence import VideoCompressionPersistence, VideoCompressionPersistenceDefaults
+
+MaybePathLike = Union[os.PathLike, str]
 
 logging.basicConfig(filename='.compression.log', level=logging.DEBUG)
 
@@ -27,6 +31,8 @@ class VideoCompressionDefaults(object):
             "bitrate": "10M",
         },
     }
+    fps = (24000, 1001)
+    pix_fmt = "yuv420p"
 
     @classmethod
     def fallback(cls, encoder, specified_options):
@@ -78,19 +84,27 @@ class VideoCompressionSystem(object):
 
 
 class SingleVideoCompression(object):
-    def __init__(self, fpath_in, gop_size=None, encoder=None,
-                 encoder_config_dict={},
-                 workdir=VideoCompressionDefaults.workdir, **kwargs):
+    def __init__(
+        self,
+        fpath_in: str,
+        gop_size: Optional[int] = None,
+        encoder: Optional[str] = None,
+        encoder_config: Optional[dict] = None,
+        workdir: MaybePathLike = VideoCompressionDefaults.workdir,
+        pix_fmt: Optional[str] = None,
+        **kwargs: dict,
+    ):
 
         self.workdir = Path(workdir).expanduser()
         self._fpath_in = Path(fpath_in).expanduser()
 
         self.encoder = VideoCompressionDefaults.encoder if encoder is None else encoder
         self.gop_size = VideoCompressionDefaults.gop_size if gop_size is None else gop_size
+        self.pix_fmt = VideoCompressionDefaults.pix_fmt if pix_fmt is None else pix_fmt
 
         self.encoder_config_dict = VideoCompressionDefaults.fallback(
             self.encoder,
-            encoder_config_dict
+            encoder_config
         )
 
         self.crop_square = False
@@ -123,6 +137,7 @@ class SingleVideoCompression(object):
         if self.crop_square:
             human_readable_name += "_cropped-square"
 
+        human_readable_name += f"_pix-fmt={self.pix_fmt}"
         human_readable_name += ".avi"
 
         return human_readable_name
@@ -160,6 +175,7 @@ class SingleVideoCompression(object):
             "-i", str(self.fpath_in),
             "-g", str(self.gop_size),
             "-strict", "-2",
+            "-an",
             "-c:v",
         ]
 
@@ -172,6 +188,9 @@ class SingleVideoCompression(object):
                 "-filter:v",
                 '"crop=ih:ih"'
             ])
+
+        if self.pix_fmt is not None:
+            command.extend(['-pix_fmt', self.pix_fmt])
 
         command.append(self.fpath_out)
 
