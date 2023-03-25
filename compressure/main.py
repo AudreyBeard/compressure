@@ -5,6 +5,7 @@ import logging
 from argparse import ArgumentParser
 from pprint import pformat
 from pathlib import Path
+from typing import Sequence, Union, Optional
 
 import ipdb  # noqa
 import numpy as np
@@ -13,7 +14,7 @@ from compressure.file_interface import nicely_sorted
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
 from compressure.persistence import CompressurePersistence
 from compressure.valve import VideoSlicer
-from compressure.dataproc import concat_videos, reverse_loop
+from compressure.dataproc import concat_videos, reverse_loop, VideoMetadata, PixelFormatter
 from compressure.exceptions import (
     EncoderSelectionError,
     MalformedConfigurationError,
@@ -21,10 +22,17 @@ from compressure.exceptions import (
 )
 
 
+# String representign path and actual pathlike objects
+MaybePathLike = Union[os.PathLike, str]
+
+
 class CompressureSystem(object):
-    def __init__(self, fpath_manifest=CompressurePersistence.defaults.fpath_manifest,
-                 workdir=CompressurePersistence.defaults.workdir,
-                 verbosity=1):
+    def __init__(
+        self,
+        fpath_manifest: MaybePathLike = CompressurePersistence.defaults.fpath_manifest,
+        workdir: MaybePathLike = CompressurePersistence.defaults.workdir,
+        verbosity: int = 1
+    ):
 
         self.persistence = CompressurePersistence(
             fpath_manifest=fpath_manifest,
@@ -38,13 +46,16 @@ class CompressureSystem(object):
         fpath_reverse_loop = reverse_loop(fpath_in)
         return fpath_reverse_loop
 
-    def compress(self,
-                 fpath_in: str,
-                 gop_size: int = 6000,
-                 encoder: str = VideoCompressionDefaults.encoder,
-                 encoder_config: dict = {},
-                 workdir: str = None,
-                 ) -> str:
+    def compress(
+        self,
+        fpath_in: str,
+        gop_size: int = 6000,
+        encoder: str = VideoCompressionDefaults.encoder,
+        encoder_config: Optional[dict] = None,
+        workdir: str = None,
+        fps: Optional[Sequence[int]] = None,
+        pix_fmt: Optional[str] = None
+    ) -> str:
         """ Encodes video file with specified parameters
             Parameters:
                 - fpath_in: video file path
@@ -52,18 +63,23 @@ class CompressureSystem(object):
                 - encoder: codec name, see VideoCompressionDefaults
                 - encoder_config: codec parameters, see VideoCompressionDefaults and ffmpeg docs
                 - workdir: location for encoded files
+                - fps: coerced framerate (sped up or slowed down), (-1, -1) for default
+                - pix_fmt: coerced pixel format
             Returns:
                 - string filepath to encoded video
         """
 
         workdir = workdir if workdir is not None else self.persistence.workdir
 
+        encoder_config = {} if encoder_config is None else encoder_config
         compressor = SingleVideoCompression(
             fpath_in=fpath_in,
             workdir=workdir,
             gop_size=gop_size,
             encoder=encoder,
-            encoder_config=encoder_config
+            encoder_config=encoder_config,
+            fps=fps,
+            pix_fmt=pix_fmt
         )
         try:
             # First see if we've already encoded it
@@ -277,6 +293,11 @@ def construct_encoder_config(encoder, user_specified_config):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument(
+        "ffmpeg-report",
+        action="store_true",
+        help="dump the ffmpeg log?"
+    )
+    parser.add_argument(
         "--pre_reverse_loop",
         action="store_true",
         help="Reverse loop the videos before processing?"
@@ -384,16 +405,26 @@ def main():
 
     fpaths_encode_forward = [None for _ in fpath_in_forward]
     dpaths_slices_forward = [None for _ in fpath_in_forward]
-    fpaths_encode_backward = [None for _ in fpath_in_forward]
-    dpaths_slices_backward = [None for _ in fpath_in_forward]
+    fpaths_encode_backward = [None for _ in fpath_in_backward]
+    dpaths_slices_backward = [None for _ in fpath_in_backward]
+
+    fpaths_all = [fp for fp in fpath_in_forward]
+    fpaths_all.extend(fpath_in_backward)
+    # min_fps = get_min_fps(fpaths_all)
+    min_pix_fmt = PixelFormatter().get_common_pix_fmt([
+        VideoMetadata(fpath).pix_fmt
+        for fpath in fpaths_all
+    ])
 
     # For each path provided in forward
     for i, fpath in enumerate(fpath_in_forward):
+        # TODO find min fps and min pix_fmt first, convert both in compress step
         fpaths_encode_forward[i] = controller.compress(
             fpath,
             gop_size=args.gop_size,
             encoder=args.encoder,
-            encoder_config=encoder_config
+            encoder_config=encoder_config,
+            pix_fmt=min_pix_fmt,
         )
         dpaths_slices_forward[i] = controller.slice(
             fpath_source=fpath,
@@ -407,7 +438,8 @@ def main():
                 fpath,
                 gop_size=args.gop_size,
                 encoder=args.encoder,
-                encoder_config=encoder_config
+                encoder_config=encoder_config,
+                pix_fmt=min_pix_fmt,
             )
             dpaths_slices_backward[i] = controller.slice(
                 fpath_source=fpath,
@@ -465,6 +497,14 @@ def main():
     print(f"Concatenating {len(video_list)} videos")
     concat_videos(video_list, fpath_out=args.fpath_out)
     print(args.fpath_out)
+
+
+def get_min_fps(
+    fpaths_in: Sequence[str],
+) -> str:
+    metadata = [VideoMetadata(str(Path(fpath).expanduser())) for fpath in fpaths_in]
+    min_arg = np.argmin([md.framerate for md in metadata])
+    return metadata[min_arg].framerate_fractional
 
 
 if __name__ == "__main__":
