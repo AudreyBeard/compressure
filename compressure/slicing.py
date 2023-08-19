@@ -48,8 +48,6 @@ class VideoSlicer(object):
 
     def slice_video(self, n_workers=0):
         if n_workers > 0:
-            # TODO pick up here
-            # NOTE this is experimental
             args_list = [
                 (
                     self.fpath_in,
