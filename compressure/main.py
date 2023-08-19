@@ -13,7 +13,7 @@ import numpy as np
 from compressure.file_interface import nicely_sorted
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
 from compressure.persistence import CompressurePersistence
-from compressure.valve import VideoSlicer
+from compressure.slicing import VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop, VideoMetadata, PixelFormatter
 from compressure.exceptions import (
     EncoderSelectionError,
@@ -119,7 +119,13 @@ class CompressureSystem(object):
 
         log_op(msg)
 
-    def slice(self, fpath_source: str, fpath_encode: str, superframe_size: int = 6) -> str:
+    def slice(
+        self,
+        fpath_source: str,
+        fpath_encode: str,
+        superframe_size: int = 6,
+        n_workers: int = 0,
+    ) -> str:
         """ Slices encoded video into short chunks, writing all to a location
             defined by the persistence class.
             NOTE that this method will create `ceil(n_frames(original) / superframe_size)`
@@ -141,7 +147,7 @@ class CompressureSystem(object):
                 superframe_size=superframe_size,
                 workdir=workdir
             )
-            slicer.slice_video()
+            slicer.slice_video(n_workers=n_workers)
             slices = self.persistence.add_slices(fpath_source, fpath_encode, superframe_size)
 
         return slices
@@ -350,8 +356,8 @@ def parse_args():
     )
     parser.add_argument(
         "-o", "--fpath_out",
-        default="output.avi",
-        help="Output filepath. Should have '.avi' extension in most circumstances."
+        default="output.mov",
+        help="Output filepath. Should have '.avi' extension if you're still fucking around"
     )
     parser.add_argument(
         "-g", "--gop_size",
@@ -381,6 +387,12 @@ def parse_args():
         "--dpath_workdir",
         default=CompressurePersistence.defaults.workdir,
         help="location for intermediate files, such as transcodes and slices"
+    )
+    parser.add_argument(
+        "--n_workers",
+        default=0,
+        type=int,
+        help="number of workers to dispatch for parallelizable operations"
     )
     args = parser.parse_args()
     assert args.scaled or args.rectified
@@ -429,7 +441,8 @@ def main():
         dpaths_slices_forward[i] = controller.slice(
             fpath_source=fpath,
             fpath_encode=fpaths_encode_forward[i],
-            superframe_size=args.superframe_size
+            superframe_size=args.superframe_size,
+            n_workers=args.n_workers,
         )
 
     if fpath_in_backward:
@@ -444,7 +457,8 @@ def main():
             dpaths_slices_backward[i] = controller.slice(
                 fpath_source=fpath,
                 fpath_encode=fpaths_encode_backward[i],
-                superframe_size=args.superframe_size
+                superframe_size=args.superframe_size,
+                n_workers=args.n_workers,
             )
 
     dpaths_slices = zip(dpaths_slices_forward, dpaths_slices_backward)

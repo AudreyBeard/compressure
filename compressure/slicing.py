@@ -1,10 +1,10 @@
-import os
-from collections import deque
-from pprint import pformat
 from argparse import ArgumentParser
+from collections import deque
+from multiprocessing import Pool
+import os
 from pathlib import Path
+from pprint import pformat
 
-import ipdb  # noqa
 import numpy as np
 from tqdm import tqdm
 
@@ -46,18 +46,54 @@ class VideoSlicer(object):
             1 / self.video_metadata.fps
         )
 
-    def slice_video(self):
-        for i, start_time in tqdm(enumerate(self.start_times), total=len(self.start_times)):
-            self.extract_single_slice(start_time, self.slices[i])
+    def slice_video(self, n_workers=0):
+        if n_workers > 0:
+            args_list = [
+                (
+                    self.fpath_in,
+                    self.slices[i],
+                    start_time,
+                    self.slice_duration
+                )
+                for i, start_time in enumerate(self.start_times)
+            ]
+            with Pool(n_workers) as p:
+                p.starmap(
+                    self.extract_single_slice,
+                    tqdm(
+                        args_list,
+                        total=len(args_list),
+                        desc=f"[slicing] superframe_size: {self.superframe_size}"
+                    )
+                )
 
-    def extract_single_slice(self, start_time, fpath_out):
+        else:
+            for i, start_time in tqdm(
+                enumerate(self.start_times),
+                total=len(self.start_times),
+                desc=f"[slicing] superframe_size {self.superframe_size}"
+            ):
+                self.extract_single_slice(
+                    str(self.fpath_in),
+                    self.slices[i],
+                    start_time,
+                    self.slice_duration
+                )
+
+    def extract_single_slice(
+        self,
+        fpath_in: str,
+        fpath_out: str,
+        start_time: float,
+        slice_duration: float,
+    ):
         command = [
             "ffmpeg", "-y",
             "-v", "error",
-            "-i", str(self.fpath_in),
+            "-i", fpath_in,
             "-c", "copy",
             "-ss", f"{start_time:.3f}",
-            "-t", f"{self.slice_duration:.3f}",
+            "-t", f"{slice_duration:.3f}",
             "-copyinkf",
             fpath_out
         ]
