@@ -71,17 +71,18 @@ class VideoSlicer(object):
                     )
                 )
 
-        for i, start_time in tqdm(
-            enumerate(self.start_times),
-            total=len(self.start_times),
-            desc=f"[slicing] superframe_size {self.superframe_size}"
-        ):
-            self.extract_single_slice(
-                str(self.fpath_in),
-                self.slices[i],
-                start_time,
-                self.slice_duration
-            )
+        else:
+            for i, start_time in tqdm(
+                enumerate(self.start_times),
+                total=len(self.start_times),
+                desc=f"[slicing] superframe_size {self.superframe_size}"
+            ):
+                self.extract_single_slice(
+                    str(self.fpath_in),
+                    self.slices[i],
+                    start_time,
+                    self.slice_duration
+                )
 
     def extract_single_slice(
         self,
