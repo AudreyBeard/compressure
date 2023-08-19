@@ -13,7 +13,7 @@ import numpy as np
 from compressure.file_interface import nicely_sorted
 from compressure.compression import SingleVideoCompression, VideoCompressionDefaults
 from compressure.persistence import CompressurePersistence
-from compressure.valve import VideoSlicer
+from compressure.slicing import VideoSlicer
 from compressure.dataproc import concat_videos, reverse_loop, VideoMetadata, PixelFormatter
 from compressure.exceptions import (
     EncoderSelectionError,

@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from pprint import pformat
 
-import ipdb  # noqa
 import numpy as np
 from tqdm import tqdm
 
@@ -60,7 +59,6 @@ class VideoSlicer(object):
                 )
                 for i, start_time in enumerate(self.start_times)
             ]
-            # ipdb.set_trace()
             with Pool(n_workers) as p:
                 p.starmap(
                     self.extract_single_slice,
