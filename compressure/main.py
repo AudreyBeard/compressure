@@ -150,6 +150,12 @@ class CompressureSystem(object):
             slicer.slice_video(n_workers=n_workers)
             slices = self.persistence.add_slices(fpath_source, fpath_encode, superframe_size)
 
+            self.persistence.save()
+            self.persistence = CompressurePersistence(
+                fpath_manifest=self.persistence.manifest.fpath,
+                workdir=self.persistence.workdir,
+                verbosity=self.persistence.verbosity
+            )
         return slices
 
     def init_buffer(self,
@@ -296,7 +302,7 @@ def construct_encoder_config(encoder, user_specified_config):
     return encoder_config
 
 
-def parse_args():
+def parse_args(ignore_requirements=False):
     parser = ArgumentParser()
     parser.add_argument(
         "ffmpeg-report",
@@ -316,13 +322,13 @@ def parse_args():
     )
     parser.add_argument(
         '-f', "--fpath_in_forward",
-        required=True,
+        required=not ignore_requirements,
         nargs="+",
         help="forward source video from which to sample"
     )
     parser.add_argument(
         '-b', "--fpath_in_backward",
-        required=True,
+        required=not ignore_requirements,
         nargs="+",
         help="backward source video from which to sample"
     )
@@ -395,7 +401,8 @@ def parse_args():
         help="number of workers to dispatch for parallelizable operations"
     )
     args = parser.parse_args()
-    assert args.scaled or args.rectified
+    if not ignore_requirements:
+        assert args.scaled or args.rectified
     return args
 
 
