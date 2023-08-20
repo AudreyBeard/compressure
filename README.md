@@ -42,9 +42,19 @@ pip install .
 ```
 
 ## Running
-The easiest entrypoint is `main.py`. You can run this in an interactive Python session (we prefer IPython), or straight from the command line.
+There are two main entrypoints for the compressure system: the GUI and the CLI.
 
 Note that you'll need some source videos to run any of these. That's kinda what this whole project is about. We suggest starting with short videos (10-30 seconds).
+
+### GUI
+This is the newest iteration and is under active development, so the UI is subject to change. That being said, it's perhaps the most intuitive and quick to use.
+
+Simply run `python ui.py`
+
+![Screen shot of the Compressure GUI](compressure-gui.png)
+
+### CLI
+If you're using the CLI, the easiest entrypoint is `main.py`. You can run this in an interactive Python session (we prefer IPython), or straight from the command line.
 
 ### Note about Default Values
 Compressure defaults to filesystem locations, encoding schemes, and hyperparameters that are supposed to be understandable, interesting, and fast. In general, we try to keep default parameters in a simple class within the module in which they're relevant, with class names like `VideoPersistenceDefaults` and `VideoCompressionDefaults`. This may change at some point. Below are some examples:
