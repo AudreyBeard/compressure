@@ -178,15 +178,12 @@ class ImporterMenu(GenericSection):
         )
         self.encoder_subsection = EncoderSubsection(on_change=self.on_change)
 
-        separators = self.generate_hlines(1)
-
         self.button_import = QPushButton("Import")
         self.button_import.clicked.connect(self.import_source)
         self.button_import.setEnabled(False)
 
         self._add_subsection(self.source_subsection)
         self._add_subsection(self.encoder_subsection)
-        self.layout.addWidget(separators[0])
         self.layout.addWidget(self.button_import)
 
     def import_source(self):
@@ -230,7 +227,7 @@ class ImporterMenu(GenericSection):
 
 class SourceSelectSubsection(GenericSection):
     def __init__(self, enable_import, on_change):
-        super().__init__("Source Select")
+        super().__init__("Source")
         self._init_layout()
         self._finalize_layout()
 
@@ -243,7 +240,7 @@ class SourceSelectSubsection(GenericSection):
         self.on_change = on_change
 
     def _init_layout(self):
-        spaces = " " * 40
+        spaces = " " * 80
         self.label_source_f = QLabel(f"Forward Source:{spaces}")
         self.button_source_select_f = QPushButton("Select Source (Forward)")
         self.button_source_select_f.clicked.connect(self.select_source_f)
@@ -337,9 +334,6 @@ class EncoderSubsection(GenericSection):
         self.encoder_config_options['qp'].setMinimum(0)
         self.encoder_config_options['qp'].setMaximum(51)
         self.encoder_config_options['qp'].setSingleStep(1)
-        self.encoder_config_options['qp'].setValue(23)
-
-        self.update_qp(23)
         self.encoder_config_options['qp'].valueChanged.connect(self.update_qp)
 
         self.encoder_config_options['bitrate'].addItems([
@@ -354,7 +348,6 @@ class EncoderSubsection(GenericSection):
             "500M",
             "1000M",
         ])
-        #self.encoder_config_options['bitrate'].setValue('10M')
 
         self.layout.addWidget(self.encoder_select)
         layout_encoder_config = QVBoxLayout()
@@ -365,6 +358,11 @@ class EncoderSubsection(GenericSection):
             layout_encoder_config.addLayout(layout_keyval)
 
         self.layout.addLayout(layout_encoder_config)
+
+        self.encoder_config_options['qp'].setValue(23)
+        self.encoder_config_options['preset'].setCurrentIndex(5)
+        self.encoder_config_options['bitrate'].setCurrentIndex(3)
+
         self.encoder_select.setCurrentIndex(1)
 
     def update_qp(self, value):
@@ -447,10 +445,7 @@ class SlicerMenu(GenericSection):
         sublayout.addWidget(self.label_superframe_size)
         sublayout.addWidget(self.slider_superframe_size)
 
-        separators = self.generate_hlines(1)
-
         self.layout.addLayout(sublayout)
-        self.layout.addWidget(separators[0])
         self.layout.addWidget(self.button)
 
     def update_label_slider(self, value):
@@ -484,7 +479,6 @@ class ComposerMenu(GenericSection):
 
         layout_frequency = QHBoxLayout()
         layout_superframes = QHBoxLayout()
-        separators = self.generate_hlines(1)
 
         self.label_frequency = QLabel()
         self.slider_frequency = QSlider(Qt.Orientation.Vertical)
@@ -511,7 +505,6 @@ class ComposerMenu(GenericSection):
 
         self.layout.addLayout(layout_frequency)
         self.layout.addLayout(layout_superframes)
-        self.layout.addWidget(separators[0])
         self.layout.addLayout(layout_superframes)
         self.layout.addWidget(self.button)
 
