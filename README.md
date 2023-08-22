@@ -1,7 +1,12 @@
 # Overview
-Compressure is a tool for video creation that hacks the time-dependence
+Compressure is a tool for video and image creation that hacks the time-dependence
 properties of video compression codecs (H.264, MPEG-4, etc.) by manipulating
-the frame timeline to break motion-estimation for new forms of movement.
+the frame timeline to break motion-estimation for new forms of movement. Below
+is just one example of the kinds of textures and colors we can create using
+this tool. For more examples, please see the [Gallery](#gallery) at the bottom
+of this README.
+
+![A single frame from a video created by mip using only Compressure on a source video](docs/imgs/mip-painting-motion.png)
 
 # Quickstart
 The following assumes the reader is using MacOS or a Debian derivative and is relatively familiar with managing their machine. We don't currently support Windows, and if you use something like CentOS, BSD, or Arch, you can likely figure out how to translate these commands.
@@ -484,3 +489,12 @@ and the visual representation:
 
 You can see from the above that the selection of this function is designed to show off the variable speed and directionality afforded by the compressure system.
 
+# Gallery
+![Single frame from bl/lo/oo/om, a piece by mip using only Compressure with four different settings on the same source](docs/imgs/bl-lo-oo-om_still.png)
+![bl/lo/oo/om, a piece by mip using only Compressure with four different settings on the same source](https://vimeo.com/839952288)
+
+![Single frame from dissociation v2, a piece by mip using only Compressure on a single source](docs/imgs/dissociation-v2_still.png)
+![dissociation v2, a piece by mip using only Compressure on a single source](https://vimeo.com/795867057)
+
+![Single frame from descendence, a piece by mip using only Compressure on a single source](docs/imgs/descendence_still.png)
+![descendence, a piece by mip using only Compressure on a single source](https://vimeo.com/839952065)
