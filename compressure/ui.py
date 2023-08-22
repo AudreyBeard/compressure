@@ -64,13 +64,13 @@ class MainWindow(QMainWindow):
             workdir=args.dpath_workdir,
         )
 
-        self.composer = ComposerMenu(
+        self.exporter = ExporterMenu(
             controller=self.controller
         )
         self.slicer = SlicerMenu(
             n_workers=args.n_workers,
             controller=self.controller,
-            on_slice=self.composer.enable,
+            on_slice=self.exporter.enable,
             on_change=self.on_change_slicer,
         )
         self.importer = ImporterMenu(
@@ -83,22 +83,22 @@ class MainWindow(QMainWindow):
         self.slicer.fpath_encode_f = self.importer.fpath_encode_f
         self.slicer.fpath_source_b = self.importer.fpath_source_b
         self.slicer.fpath_encode_b = self.importer.fpath_encode_b
-        self.composer.dpath_slices_f = self.slicer.dpath_slices_f
-        self.composer.dpath_slices_b = self.slicer.dpath_slices_b
-        self.composer.superframe_size = self.slicer.slider_superframe_size.value
+        self.exporter.dpath_slices_f = self.slicer.dpath_slices_f
+        self.exporter.dpath_slices_b = self.slicer.dpath_slices_b
+        self.exporter.superframe_size = self.slicer.slider_superframe_size.value
 
         layout_primary = QHBoxLayout()
         layout_primary.addWidget(self.importer.group_box)
 
         layout_secondary = QVBoxLayout()
         layout_secondary.addWidget(self.slicer.group_box)
-        layout_secondary.addWidget(self.composer.group_box)
+        layout_secondary.addWidget(self.exporter.group_box)
 
         self.layout.addLayout(layout_primary)
         self.layout.addLayout(layout_secondary)
 
         # self._add_subsection(self.slicer)
-        # self._add_subsection(self.composer)
+        # self._add_subsection(self.exporter)
 
         self.widget = QWidget()
         self.widget.setLayout(self.layout)
@@ -109,10 +109,10 @@ class MainWindow(QMainWindow):
 
     def on_change_importer(self):
         self.slicer.disable()
-        self.composer.disable()
+        self.exporter.disable()
 
     def on_change_slicer(self):
-        self.composer.disable()
+        self.exporter.disable()
 
 
 class GenericSection(QWidget):
@@ -432,7 +432,7 @@ class SlicerMenu(GenericSection):
         sublayout = QHBoxLayout()
 
         self.label_superframe_size = QLabel()
-        self.slider_superframe_size = QSlider(Qt.Orientation.Vertical)
+        self.slider_superframe_size = QSlider(Qt.Orientation.Horizontal)
         self.slider_superframe_size.valueChanged.connect(self.update_label_slider)
 
         self.slider_superframe_size.setMinimum(3)
@@ -461,70 +461,100 @@ class SlicerMenu(GenericSection):
 
 class ExporterMenu(GenericSection):
     def __init__(self, controller):
-        super().__init__("composer", horizontal=False)
+        super().__init__("Exporter", horizontal=False)
 
         self.controller = controller
 
         self._init_layout()
         self._finalize_layout()
 
-        self.ready_to_compose = False
-        self.fpath_out = None
+        self.ready_to_export = False
+
+    def fpath_out(self):
+        return self.subsection_destination.fpath_out()
 
     def _log_compose(self):
         # TODO how can I pass filename?
         logging.info("compose")
 
     def _init_layout(self):
-        layout_frequency = QHBoxLayout()
-        layout_superframes = QHBoxLayout()
+        self.subsection_destination = DestinationSubsection()
+        self.subsection_destination.enable = self.enable
+        # self.subsection_destination.on_change = self.on_change
 
-        self.label_frequency = QLabel()
-        self.slider_frequency = QSlider(Qt.Orientation.Vertical)
-        self.slider_frequency.valueChanged.connect(self.update_label_frequency)
+        self.subsection_compose = ComposerSubsection()
+        # self.subsection_compose.on_change = self.on_change
+        self.subsection_compose.fpath_out = self.subsection_destination.fpath_out
 
-        self.slider_frequency.setMinimum(1)
-        self.slider_frequency.setMaximum(16)
-        self.slider_frequency.setSingleStep(1)
-        self.slider_frequency.setValue(1)
-        self.update_label_frequency(2)
-
-        layout_frequency.addWidget(self.label_frequency)
-        layout_frequency.addWidget(self.slider_frequency)
-
-        self.label_superframes = QLabel("# Superframes")
-        self.spinbox_superframes = QSpinBox()
-        self.spinbox_superframes.setMinimum(10)
-        self.spinbox_superframes.setMaximum(10000)
-        self.spinbox_superframes.setSingleStep(1)
-        self.spinbox_superframes.setValue(200)
-
-        spaces = " " * 80
-        self.label_output = QLabel(f"Output Filepath:{spaces}")
-        self.button_output_spec = QPushButton("Specify Output Filepath")
-        self.button_output_spec.clicked.connect(self.specify_output)
-
-        self.button = QPushButton("Compose")
+        self.button = QPushButton("Export")
         self.button.clicked.connect(self.compose_slices)
         self.enable(False)
 
-        layout_superframes.addWidget(self.label_superframes)
-        layout_superframes.addWidget(self.spinbox_superframes)
+        self._add_subsection(self.subsection_compose)
+        self._add_subsection(self.subsection_destination)
 
-        self.layout.addWidget(self.label_output)
-        self.layout.addWidget(self.button_output_spec)
-        self.layout.addLayout(layout_frequency)
-        self.layout.addLayout(layout_superframes)
-        self.layout.addLayout(layout_superframes)
         self.layout.addWidget(self.button)
 
     def enable(self, is_enabled=True):
-        self.ready_to_compose = is_enabled
-        self.button.setEnabled(self.ready_to_compose and self.fpath_out is not None)
+        self.subsection_destination.ready_to_export = is_enabled
+        self.button.setEnabled(
+            self.subsection_destination.ready_to_export
+            and self.fpath_out() is not None  # noqa
+        )
 
     def disable(self, is_enabled=False):
-        self.ready_to_compose = is_enabled
+        self.subsection_destination.ready_to_export = is_enabled
         self.button.setEnabled(is_enabled)
+
+    def compose_slices(self):
+        buffer = self.controller.init_buffer(
+            self.dpath_slices_f(),
+            self.dpath_slices_b(),
+            self.superframe_size()
+        )
+
+        initial_state = deepcopy(buffer.state)
+        timeline = generate_timeline_function(
+            self.superframe_size(),
+            len(buffer),
+            frequency=self.subsection_compose.slider_frequency.value() / 2,
+            n_superframes=self.subsection_compose.spinbox_superframes.value() - 1,
+            scaled=True,
+            rectified=False
+        )
+
+        if timeline[0] == initial_state:
+            video_list = []
+        else:
+            video_list = [initial_state]
+
+        for i, current_slice in enumerate(timeline):
+            video_list.append(buffer.step(to=current_slice))
+
+        print(f"Concatenating {len(video_list)} videos")
+        concat_videos(video_list, fpath_out=self.fpath_out())
+        print(self.fpath_out())
+
+
+# TODO pick up here
+class DestinationSubsection(GenericSection):
+    def __init__(self):
+        super().__init__("destination")
+        self._init_layout()
+        self._finalize_layout()
+
+        self._fpath_out = None
+        self.ready_to_export = False
+
+    def _init_layout(self):
+
+        spaces = " " * 80
+        self.label_output = QLabel(f"Destination:{spaces}")
+        self.button_output_spec = QPushButton("Specify Destination")
+        self.button_output_spec.clicked.connect(self.specify_output)
+
+        self.layout.addWidget(self.label_output)
+        self.layout.addWidget(self.button_output_spec)
 
     def specify_output(self):
 
@@ -541,53 +571,53 @@ class ExporterMenu(GenericSection):
         )
 
         if file_path:
-            self.fpath_out = file_path
-            self.label_output.setText(f"Output Filepath: {file_path}")
-            self.enable(self.ready_to_compose)
+            self._fpath_out = file_path
+            self.label_output.setText(f"Destination: {file_path}")
+            self.enable(self.ready_to_export)
 
-    def compose_slices(self):
-        buffer = self.controller.init_buffer(
-            self.dpath_slices_f(),
-            self.dpath_slices_b(),
-            self.superframe_size()
-        )
-
-        initial_state = deepcopy(buffer.state)
-        timeline = generate_timeline_function(
-            self.superframe_size(),
-            len(buffer),
-            frequency=self.slider_frequency.value() / 2,
-            n_superframes=self.spinbox_superframes.value() - 1,
-            scaled=True,
-            rectified=False
-        )
-
-        if timeline[0] == initial_state:
-            video_list = []
-        else:
-            video_list = [initial_state]
-
-        for i, current_slice in enumerate(timeline):
-            video_list.append(buffer.step(to=current_slice))
-
-        print(f"Concatenating {len(video_list)} videos")
-        concat_videos(video_list, fpath_out=self.fpath_out)
-        print(self.fpath_out)
-
-    def update_label_frequency(self, value):
-        self.label_frequency.setText(f'Frequency: {value/2:.1f}')
-
-
-# TODO pick up here
-class DestinationSubsection(GenericSection):
-    def __init__(self):
-        super().__init__()
+    def fpath_out(self):
+        return self._fpath_out
 
 
 # TODO pick up here
 class ComposerSubsection(GenericSection):
     def __init__(self):
-        super().__init__()
+        super().__init__("composer")
+        self._init_layout()
+        self._finalize_layout()
+
+    def _init_layout(self):
+        layout_frequency = QHBoxLayout()
+        layout_superframes = QHBoxLayout()
+
+        self.label_frequency = QLabel()
+        self.slider_frequency = QSlider(Qt.Orientation.Horizontal)
+        self.slider_frequency.valueChanged.connect(self.update_label_frequency)
+
+        self.slider_frequency.setMinimum(1)
+        self.slider_frequency.setMaximum(16)
+        self.slider_frequency.setSingleStep(1)
+        self.slider_frequency.setValue(1)
+        self.update_label_frequency(1)
+
+        layout_frequency.addWidget(self.label_frequency)
+        layout_frequency.addWidget(self.slider_frequency)
+
+        self.label_superframes = QLabel("# Superframes")
+        self.spinbox_superframes = QSpinBox()
+        self.spinbox_superframes.setMinimum(10)
+        self.spinbox_superframes.setMaximum(10000)
+        self.spinbox_superframes.setSingleStep(1)
+        self.spinbox_superframes.setValue(200)
+
+        layout_superframes.addWidget(self.label_superframes)
+        layout_superframes.addWidget(self.spinbox_superframes)
+
+        self.layout.addLayout(layout_frequency)
+        self.layout.addLayout(layout_superframes)
+
+    def update_label_frequency(self, value):
+        self.label_frequency.setText(f'Frequency: {value/2:.1f}')
 
 
 def run_app():
