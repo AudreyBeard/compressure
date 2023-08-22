@@ -459,7 +459,7 @@ class SlicerMenu(GenericSection):
         self.button.setEnabled(is_enabled)
 
 
-class ComposerMenu(GenericSection):
+class ExporterMenu(GenericSection):
     def __init__(self, controller):
         super().__init__("composer", horizontal=False)
 
@@ -576,6 +576,18 @@ class ComposerMenu(GenericSection):
 
     def update_label_frequency(self, value):
         self.label_frequency.setText(f'Frequency: {value/2:.1f}')
+
+
+# TODO pick up here
+class DestinationSubsection(GenericSection):
+    def __init__(self):
+        super().__init__()
+
+
+# TODO pick up here
+class ComposerSubsection(GenericSection):
+    def __init__(self):
+        super().__init__()
 
 
 def run_app():
