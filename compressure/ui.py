@@ -34,9 +34,12 @@ from compressure.dataproc import (
     VideoMetadata,
 )
 
+from compressure.exceptions import (
+    EncoderSelectionError,
+)
+
 from compressure.main import (
     CompressureSystem,
-    construct_encoder_config,
     parse_args,
     generate_timeline_function,
 )
@@ -187,10 +190,21 @@ class ImporterMenu(GenericSection):
         self.layout.addWidget(self.button_import)
 
     def import_source(self):
-        encoder_config = construct_encoder_config(
-            self.encoder_subsection.encoder_select.currentText(),
-            "",
-        )
+        qp = self.encoder_subsection.encoder_config_options['qp'].value()
+        preset = self.encoder_subsection.encoder_config_options['preset'].currentText()
+        bitrate = self.encoder_subsection.encoder_config_options['bitrate'].currentText()
+
+        encoder = self.encoder_subsection.encoder_select.currentText()
+        try:
+            encoder_config = VideoCompressionDefaults.encoder_config_options[encoder]
+        except KeyError:
+            raise EncoderSelectionError(encoder)
+
+        if encoder == "libx264":
+            encoder_config['preset'] = preset
+            encoder_config['qp'] = qp
+        elif encoder == 'h264_videotoolbox':
+            encoder_config['bitrate'] = bitrate
 
         self.source_subsection._fpath_encode_f = self.controller.compress(
             self.source_subsection._fpath_source_f,
@@ -216,7 +230,7 @@ class ImporterMenu(GenericSection):
 
 class SourceSelectSubsection(GenericSection):
     def __init__(self, enable_import, on_change):
-        super().__init__("Source Selecter")
+        super().__init__("Source Select")
         self._init_layout()
         self._finalize_layout()
 
@@ -230,11 +244,11 @@ class SourceSelectSubsection(GenericSection):
 
     def _init_layout(self):
         spaces = " " * 40
-        self.label_source_f = QLabel(f"Source (Forward):{spaces}")
+        self.label_source_f = QLabel(f"Forward Source:{spaces}")
         self.button_source_select_f = QPushButton("Select Source (Forward)")
         self.button_source_select_f.clicked.connect(self.select_source_f)
 
-        self.label_source_b = QLabel(f"Source (Backward):{spaces}")
+        self.label_source_b = QLabel(f"Backward Source:{spaces}")
         self.button_source_select_b = QPushButton("Select Source (Backward)")
         self.button_source_select_b.clicked.connect(self.select_source_b)
 
@@ -295,6 +309,7 @@ class EncoderSubsection(GenericSection):
 
         self.encoder_select = QComboBox()
         self.encoder_select.addItems(self._encoder_options)
+        self.encoder_select.currentIndexChanged.connect(self.update_encoder)
 
         self.encoder_config_options = {
             'preset': QComboBox(),
@@ -350,10 +365,26 @@ class EncoderSubsection(GenericSection):
             layout_encoder_config.addLayout(layout_keyval)
 
         self.layout.addLayout(layout_encoder_config)
+        self.encoder_select.setCurrentIndex(1)
 
     def update_qp(self, value):
         self.encoder_config_labels['qp'].setText(f'qp: {value}')
         self.on_change()
+
+    def update_encoder(self):
+        encoder = self.encoder_select.currentText()
+        if encoder == "mpeg4":
+            self.encoder_config_options['qp'].setEnabled(False)
+            self.encoder_config_options['preset'].setEnabled(False)
+            self.encoder_config_options['bitrate'].setEnabled(False)
+        elif encoder == "libx264":
+            self.encoder_config_options['qp'].setEnabled(True)
+            self.encoder_config_options['preset'].setEnabled(True)
+            self.encoder_config_options['bitrate'].setEnabled(False)
+        elif encoder == "h264_videotoolbox":
+            self.encoder_config_options['qp'].setEnabled(False)
+            self.encoder_config_options['preset'].setEnabled(False)
+            self.encoder_config_options['bitrate'].setEnabled(True)
 
 
 class SlicerMenu(GenericSection):
