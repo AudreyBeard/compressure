@@ -1,3 +1,5 @@
+![A single frame from a video created by mip using only Compressure on a source video](mip-painting-motion.png)
+
 # Overview
 Compressure is a tool for video creation that hacks the time-dependence
 properties of video compression codecs (H.264, MPEG-4, etc.) by manipulating
