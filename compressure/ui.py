@@ -468,15 +468,14 @@ class ComposerMenu(GenericSection):
         self._init_layout()
         self._finalize_layout()
 
+        self.ready_to_compose = False
+        self.fpath_out = None
+
     def _log_compose(self):
         # TODO how can I pass filename?
         logging.info("compose")
 
     def _init_layout(self):
-        self.button = QPushButton("Compose")
-        self.button.clicked.connect(self.compose_slices)
-        self.enable(False)
-
         layout_frequency = QHBoxLayout()
         layout_superframes = QHBoxLayout()
 
@@ -487,6 +486,7 @@ class ComposerMenu(GenericSection):
         self.slider_frequency.setMinimum(1)
         self.slider_frequency.setMaximum(16)
         self.slider_frequency.setSingleStep(1)
+        # TODO change this to 1
         self.slider_frequency.setValue(2)
         self.update_label_frequency(2)
 
@@ -500,19 +500,51 @@ class ComposerMenu(GenericSection):
         self.spinbox_superframes.setSingleStep(1)
         self.spinbox_superframes.setValue(200)
 
+        spaces = " " * 80
+        self.label_output = QLabel(f"Output Filepath:{spaces}")
+        self.button_output_spec = QPushButton("Specify Output Filepath")
+        self.button_output_spec.clicked.connect(self.specify_output)
+
+        self.button = QPushButton("Compose")
+        self.button.clicked.connect(self.compose_slices)
+        self.enable(False)
+
         layout_superframes.addWidget(self.label_superframes)
         layout_superframes.addWidget(self.spinbox_superframes)
 
+        self.layout.addWidget(self.label_output)
+        self.layout.addWidget(self.button_output_spec)
         self.layout.addLayout(layout_frequency)
         self.layout.addLayout(layout_superframes)
         self.layout.addLayout(layout_superframes)
         self.layout.addWidget(self.button)
 
     def enable(self, is_enabled=True):
-        self.button.setEnabled(is_enabled)
+        self.ready_to_compose = is_enabled
+        self.button.setEnabled(self.ready_to_compose and self.fpath_out is not None)
 
     def disable(self, is_enabled=False):
+        self.ready_to_compose = is_enabled
         self.button.setEnabled(is_enabled)
+
+    def specify_output(self):
+
+        # Disable native dialog to support non-existent files
+        dialog = QFileDialog()
+        options = dialog.options()
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Output File",
+            "",
+            "Video files (*.mov *.avi *.mkv *.mp4)",
+            options=options
+        )
+
+        if file_path:
+            self.fpath_out = file_path
+            self.label_output.setText(f"Output Filepath: {file_path}")
+            self.enable(self.ready_to_compose)
 
     def compose_slices(self):
         buffer = self.controller.init_buffer(
@@ -539,10 +571,9 @@ class ComposerMenu(GenericSection):
         for i, current_slice in enumerate(timeline):
             video_list.append(buffer.step(to=current_slice))
 
-        fpath_out = "/Users/audrey/data/video/output/output.mov"
         print(f"Concatenating {len(video_list)} videos")
-        concat_videos(video_list, fpath_out=fpath_out)
-        print(fpath_out)
+        concat_videos(video_list, fpath_out=self.fpath_out)
+        print(self.fpath_out)
 
     def update_label_frequency(self, value):
         self.label_frequency.setText(f'Frequency: {value/2:.1f}')
