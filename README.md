@@ -56,7 +56,7 @@ This is the newest iteration and is under active development, so the UI is subje
 
 Simply run `python ui.py`
 
-![Screen shot of the Compressure GUI](compressure-gui.png)
+![Screen shot of the Compressure GUI](docs/imgs/compressure-gui.png)
 
 ### CLI
 If you're using the CLI, the easiest entrypoint is `main.py`. You can run this in an interactive Python session (we prefer IPython), or straight from the command line.
