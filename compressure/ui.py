@@ -486,8 +486,7 @@ class ComposerMenu(GenericSection):
         self.slider_frequency.setMinimum(1)
         self.slider_frequency.setMaximum(16)
         self.slider_frequency.setSingleStep(1)
-        # TODO change this to 1
-        self.slider_frequency.setValue(2)
+        self.slider_frequency.setValue(1)
         self.update_label_frequency(2)
 
         layout_frequency.addWidget(self.label_frequency)
