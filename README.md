@@ -1,7 +1,10 @@
 # Overview
-Compressure is a tool for video creation that hacks the time-dependence
+Compressure is a tool for video and image creation that hacks the time-dependence
 properties of video compression codecs (H.264, MPEG-4, etc.) by manipulating
-the frame timeline to break motion-estimation for new forms of movement.
+the frame timeline to break motion-estimation for new forms of movement. Below
+is just one example of the kinds of textures and colors we can create using
+this tool. For more examples, please see the [Gallery](#gallery) at the bottom
+of this README.
 
 ![A single frame from a video created by mip using only Compressure on a source video](docs/imgs/mip-painting-motion.png)
 
