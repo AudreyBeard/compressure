@@ -30,6 +30,8 @@ subject to change. That being said, it's perhaps the most intuitive and quick
 to use. Once you've installed everything on the command line, simply run
 `python ui.py`
 
+If you have the cores to spare, specify `--n_workers X`, where `X` is the number of cores to use
+
 Note that you'll need some source videos to run any of these. That's kinda what
 this whole project is about. We suggest starting with short videos (10-30
 seconds).
@@ -37,22 +39,36 @@ seconds).
 ![Screen shot of the Compressure GUI](docs/imgs/compressure-gui.png)
 
 ## Order of Operations
-1. Import sources:
-    1. select source files:
-        1. forward - video used to start, used when moving forward in the timeline
-        2. Backward - used when moving backwards through the timeline
-    2. specify encoder settings:
-        1. encoder selection (`mpeg4`, `libx264`, `h264_videotoolbox`) - this is perhaps the most impactful choice you can make
-        2. encoder options:
-            1. preset - dictates encode speed (including size of encodes on disk), only available for `libx264`
-            2. qp - another important parameter worth playing with, only available for `libx264`
-            3. bitrate - similar to qp, only relevant for `h264_videotoolbox`
-2. Slice encoded videos into "superframes," or a handful of frames
-3. Export video:
-    1. Compose with timeline operations - the default operation is a negative cosine:
-        1. number of superframes to fit into the timeline - more is a longer film with slower motion, high is a shorter film with faster motion
-        2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
-    2. specify destination file
+### Import Sources
+Once you click "import," you may have to wait a moment for the system to import
+it. If the system's already encoded a video with a specific setting, it will
+cache it and use it later instead of re-encoding
+
+1. select source files:
+    1. forward - video used to start, used when moving forward in the timeline
+    2. Backward - used when moving backwards through the timeline
+2. specify encoder settings:
+    1. encoder selection (`mpeg4`, `libx264`, `h264_videotoolbox`) - this is
+       perhaps the most impactful choice you can make
+    2. encoder options:
+        1. preset - dictates encode speed (including size of encodes on disk),
+           only available for `libx264`
+        2. qp - another important parameter worth playing with, only available
+           for `libx264`
+        3. bitrate - similar to qp, only relevant for `h264_videotoolbox`
+### Slice videos into "superframes"
+A "superframe" is a collection of adjacent frames (I like 6-10) which
+constitute the smallest unit within the compressure system. This is by far the
+longest part of the process and the point at which you can benefit from
+multiprocessing. The system will appear to freeze, but if you look over at the
+terminal at this time, you'll see it's working hard.
+
+### Export Video
+1. Compose with timeline operations - the default operation is a negative cosine:
+    1. number of superframes to fit into the timeline - more is a longer film
+       with slower motion, high is a shorter film with faster motion
+    2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
+2. specify destination file
 
 # Development
 The following assumes the reader is using MacOS or a Debian derivative and is
