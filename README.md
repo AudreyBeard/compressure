@@ -51,7 +51,7 @@ seconds).
 3. Export video:
     1. Compose with timeline operations - the default operation is a negative cosine:
         1. number of superframes to fit into the timeline - more is a longer film with slower motion, high is a shorter film with faster motion
-        2. frequency (in $/pi$ radians) from the beginning to the end of the timeline
+        2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
     2. specify destination file
 
 # Development
