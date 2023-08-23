@@ -8,33 +8,11 @@ of this README.
 
 ![A single frame from a video created by mip using only Compressure on a source video](docs/imgs/mip-painting-motion.png)
 
-# Quickstart
-The following assumes the reader is using MacOS or a Debian derivative and is relatively familiar with managing their machine. We don't currently support Windows, and if you use something like CentOS, BSD, or Arch, you can likely figure out how to translate these commands.
-
-## Make & Docker
-The easiest thing to do is simply install with Make and Docker:
-```bash
-make build
-make run
-```
-
-Note that the above will first build the docker container using `Dockerfile` and then run that image using the mountpoints specified in `Makefile`, and execute the shell script `sample_compressure_command.sh`. Because it uses sample values for video filenames, you should see a `SubprocessError` indicating that a video file couldn't be found. To get around this, you should:
-1. locate one or two videos you're interested in using (suggested length >10sec and <5min), place somewhere on your filesystem to expose to the Docker container
-2. in `sample_compressure_command.sh`, change the values of `FNAME_VIDEO_FORWARD` and `FNAME_VIDEO_BACKWARD` to match those of the one or two videos you selected above
-3. in `Makefile`, change the value of `DPATH_INPUT` to be the parent directory of the one or two videos you selected above
-4. **Optionally** in `Makefile`, change the value of `DPATH_OUTPUT` to a preferred location
-5. Build and run the docker container with `make run`
-
-## Installation
+# Requirements
 First of all, make sure you have `ffmpeg` installed - on MacOS, you can use
 `brew install ffmpeg`, and on Debian derivatives you can use `apt-get install ffmpeg`.
 You *probably* don't need anything special here, so the builds distributed in
 these main channels will suffice.
-
-If you're trying to do hardware acceleration, we suggest trying the builds
-distributed through these channels first, then install from source if
-necessary. Note that the `ffmpeg` developers recommend installing from source
-code, but that process is out of scope for this document.
 
 We strongly recommend using virtual environments. You can use any virtual
 environment system you like, but we build and test with `python -m venv
@@ -46,24 +24,102 @@ pip install -r requirements.txt
 pip install .
 ```
 
-## Running
-There are two main entrypoints for the compressure system: the GUI and the CLI.
+# Usage
+The graphical user interface (GUI) is under active development, so the UI is
+subject to change. That being said, it's perhaps the most intuitive and quick
+to use. Once you've installed everything on the command line, simply run
+`python ui.py`
 
-Note that you'll need some source videos to run any of these. That's kinda what this whole project is about. We suggest starting with short videos (10-30 seconds).
+If you have the cores to spare, specify `--n_workers X`, where `X` is the number of cores to use
 
-### GUI
-This is the newest iteration and is under active development, so the UI is subject to change. That being said, it's perhaps the most intuitive and quick to use.
+Note that you'll need some source videos to run any of these. That's kinda what
+this whole project is about. We suggest starting with short videos (10-30
+seconds).
 
-Simply run `python ui.py`
+![Screen shot of the Compressure GUI](docs/imgs/compressure-gui.png)
 
-![Screen shot of the Compressure GUI](compressure-gui.png)
+## Order of Operations
+### Import Sources
+Once you click "import," you may have to wait a moment for the system to import
+it. If the system's already encoded a video with a specific setting, it will
+cache it and use it later instead of re-encoding
 
-### CLI
-If you're using the CLI, the easiest entrypoint is `main.py`. You can run this in an interactive Python session (we prefer IPython), or straight from the command line.
+1. select source files:
+    1. forward - video used to start, used when moving forward in the timeline
+    2. Backward - used when moving backwards through the timeline
+2. specify encoder settings:
+    1. encoder selection (`mpeg4`, `libx264`, `h264_videotoolbox`) - this is
+       perhaps the most impactful choice you can make
+    2. encoder options:
+        1. preset - dictates encode speed (including size of encodes on disk),
+           only available for `libx264`
+        2. qp - another important parameter worth playing with, only available
+           for `libx264`
+        3. bitrate - similar to qp, only relevant for `h264_videotoolbox`
+### Slice videos into "superframes"
+A "superframe" is a collection of adjacent frames (I like 6-10) which
+constitute the smallest unit within the compressure system. This is by far the
+longest part of the process and the point at which you can benefit from
+multiprocessing. The system will appear to freeze, but if you look over at the
+terminal at this time, you'll see it's working hard.
+
+### Export Video
+1. Compose with timeline operations - the default operation is a negative cosine:
+    1. number of superframes to fit into the timeline - more is a longer film
+       with slower motion, high is a shorter film with faster motion
+    2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
+2. specify destination file
+
+# Development
+The following assumes the reader is using MacOS or a Debian derivative and is
+relatively familiar with managing their machine. We don't currently support
+Windows, and if you use something like CentOS, BSD, or Arch, you can likely
+figure out how to translate these commands.
+
+Regarding `ffmpeg`, if you're trying to do hardware acceleration, we suggest
+trying the builds distributed through the main package manager channels first,
+then install from source if necessary. Note that the `ffmpeg` developers
+recommend installing from source code, but that process is out of scope for
+this document.
+
+## Make & Docker
+The easiest thing to do is simply install with Make and Docker:
+```bash
+make build
+make run
+```
+
+Note that the above will first build the docker container using `Dockerfile`
+and then run that image using the mountpoints specified in `Makefile`, and
+execute the shell script `sample_compressure_command.sh`. Because it uses
+sample values for video filenames, you should see a `SubprocessError`
+indicating that a video file couldn't be found. To get around this, you should:
+1. locate one or two videos you're interested in using (suggested length >10sec
+   and <5min), place somewhere on your filesystem to expose to the Docker
+   container
+2. in `sample_compressure_command.sh`, change the values of
+   `FNAME_VIDEO_FORWARD` and `FNAME_VIDEO_BACKWARD` to match those of the one
+   or two videos you selected above
+3. in `Makefile`, change the value of `DPATH_INPUT` to be the parent directory
+   of the one or two videos you selected above
+4. **Optionally** in `Makefile`, change the value of `DPATH_OUTPUT` to a preferred location
+5. Build and run the docker container with `make run`
+
+
+## Directly
+If you're trying to use the system directly or interactively, the easiest
+entrypoint is `main.py`. You can run this in an interactive Python session (we
+prefer IPython), or straight from the command line.
 
 ### Note about Default Values
-Compressure defaults to filesystem locations, encoding schemes, and hyperparameters that are supposed to be understandable, interesting, and fast. In general, we try to keep default parameters in a simple class within the module in which they're relevant, with class names like `VideoPersistenceDefaults` and `VideoCompressionDefaults`. This may change at some point. Below are some examples:
-- cached files (including the manifest file, a JSON file that keeps track of cached files) go to `~/.cache/compressure` unless specified otherwise
+Compressure defaults to filesystem locations, encoding schemes, and
+hyperparameters that are supposed to be understandable, interesting, and fast.
+In general, we try to keep default parameters in a simple class within the
+module in which they're relevant, with class names like
+`VideoPersistenceDefaults` and `VideoCompressionDefaults`. This may change at
+some point. Below are some examples:
+- cached files (including the manifest file, a JSON file that keeps track of
+  cached files) go to `~/.cache/compressure` unless specified otherwise
 - encoded videos are dropped into the `$CACHE/encodes` by default, where `$CACHE` is the location specified above.
 - videos are encoded with `libx264` unless specified otherwise
 - encoding parameters (listed below as ffmpeg commands:
@@ -76,7 +132,11 @@ Compressure defaults to filesystem locations, encoding schemes, and hyperparamet
     - `-c:v h264_videotoolbox -bf 0 -b:v 10M`:
         - `h264_videotoolbox` is the [MacOS hardware-accelerated codec for H.264](https://developer.apple.com/documentation/videotoolbox). In our experiments with it in this context, it's not particularly impactful
         - `-b:v` is the target bitrate, which we specify as `bitrate` in Python for readability
-    - GoP size is the "group of pictures" size, specifying the maximum number of frames to place between intra-frames. Lower numbers will "reset" the video to a normal-looking state more frequently, higher numbers will propagate artifacts for longer (more abstract). This corresponds to the ffmpeg option `-g`
+    - GoP size is the "group of pictures" size, specifying the maximum number
+      of frames to place between intra-frames. Lower numbers will "reset" the
+      video to a normal-looking state more frequently, higher numbers will
+      propagate artifacts for longer (more abstract). This corresponds to the
+      ffmpeg option `-g`
 - Encoded videos later get sliced into "superframes" - very short (4-10 frames)
   chunks that are each offset by one second w.r.t. their temporal neighbors. We
   can move through the timeline one superframe at a time, to see a kind of
