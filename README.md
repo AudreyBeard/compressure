@@ -39,6 +39,14 @@ seconds).
 ![Screen shot of the Compressure GUI](docs/imgs/compressure-gui.png)
 
 ## Order of Operations
+Compressure is a data processing pipeline over which the user has some control.
+The following system diagram may be helpful in understanding how the user's
+input affects the process.
+
+![Compressure system diagram](docs/imgs/system-diagram.png)
+
+Below we explain in greater detail the process outlined above.
+
 ### Import Sources
 Once you click "import," you may have to wait a moment for the system to import
 it. If the system's already encoded a video with a specific setting, it will
