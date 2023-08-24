@@ -559,10 +559,10 @@ You can see from the above that the selection of this function is designed to sh
 
 # Gallery
 ![Single frame from bl/lo/oo/om, a piece by mip using only Compressure with four different settings on the same source](docs/imgs/bl-lo-oo-om_still.png)
-![bl/lo/oo/om, a piece by mip using only Compressure with four different settings on the same source](https://vimeo.com/839952288)
+[bl/lo/oo/om, a piece by mip using only Compressure with four different settings on the same source](https://vimeo.com/839952288)
 
 ![Single frame from dissociation v2, a piece by mip using only Compressure on a single source](docs/imgs/dissociation-v2_still.png)
-![dissociation v2, a piece by mip using only Compressure on a single source](https://vimeo.com/795867057)
+[dissociation v2, a piece by mip using only Compressure on a single source](https://vimeo.com/795867057)
 
 ![Single frame from descendence, a piece by mip using only Compressure on a single source](docs/imgs/descendence_still.png)
-![descendence, a piece by mip using only Compressure on a single source](https://vimeo.com/839952065)
+[descendence, a piece by mip using only Compressure on a single source](https://vimeo.com/839952065)
