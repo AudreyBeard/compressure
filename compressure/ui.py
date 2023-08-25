@@ -227,7 +227,7 @@ class ImporterMenu(GenericSection):
 
 class SourceSelectSubsection(GenericSection):
     def __init__(self, enable_import, on_change):
-        super().__init__("Source")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -297,7 +297,7 @@ class EncoderSubsection(GenericSection):
     _encoder_options = VideoCompressionDefaults.encoder_config_options.keys()
 
     def __init__(self, on_change):
-        super().__init__("encoder")
+        super().__init__("")
         self.on_change = on_change
         self._init_layout()
         self._finalize_layout()
@@ -536,10 +536,9 @@ class ExporterMenu(GenericSection):
         print(self.fpath_out())
 
 
-# TODO pick up here
 class DestinationSubsection(GenericSection):
     def __init__(self):
-        super().__init__("destination")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -579,10 +578,9 @@ class DestinationSubsection(GenericSection):
         return self._fpath_out
 
 
-# TODO pick up here
 class ComposerSubsection(GenericSection):
     def __init__(self):
-        super().__init__("composer")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -618,6 +616,16 @@ class ComposerSubsection(GenericSection):
 
     def update_label_frequency(self, value):
         self.label_frequency.setText(f'Frequency: {value/2:.1f}')
+
+
+class ManifestSection(GenericSection):
+    def __init__(self):
+        super.__init__("manifest")
+        self._init_layout()
+        self._finalize_layout()
+
+    def _init_layout(self):
+        return
 
 
 def run_app():
