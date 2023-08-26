@@ -1,6 +1,7 @@
 from copy import deepcopy
 import logging
 from pathlib import Path
+import re
 from typing import (
     List,
 )
@@ -19,6 +20,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSlider,
     QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +52,8 @@ logging.basicConfig(filename=LOG_FPATH, level=LOG_LEVEL)
 
 
 class MainWindow(QMainWindow):
+    encoder_options = VideoCompressionDefaults.encoder_config_options.keys()
+
     def __init__(self):
         super().__init__()
         self._init_layout()
@@ -56,7 +61,8 @@ class MainWindow(QMainWindow):
     def _init_layout(self):
         self.setWindowTitle(APP_NAME)
 
-        self.layout = QHBoxLayout()
+        self.layout = QVBoxLayout()
+        self.layout_tools = QHBoxLayout()
 
         args = parse_args(ignore_requirements=True)
         self.controller = CompressureSystem(
@@ -70,13 +76,18 @@ class MainWindow(QMainWindow):
         self.slicer = SlicerMenu(
             n_workers=args.n_workers,
             controller=self.controller,
-            on_slice=self.exporter.enable,
+            on_slice=self.on_slice,
             on_change=self.on_change_slicer,
         )
         self.importer = ImporterMenu(
             controller=self.controller,
-            on_import=self.slicer.enable,
+            on_import=self.on_import,
             on_change=self.on_change_importer,
+            encoder_options=self.encoder_options,
+        )
+        self.manifest = ManifestSection(
+            controller=self.controller,
+            encoder_options=self.encoder_options
         )
 
         self.slicer.fpath_source_f = self.importer.fpath_source_f
@@ -94,8 +105,13 @@ class MainWindow(QMainWindow):
         layout_secondary.addWidget(self.slicer.group_box)
         layout_secondary.addWidget(self.exporter.group_box)
 
-        self.layout.addLayout(layout_primary)
-        self.layout.addLayout(layout_secondary)
+        #self.layout_tools.addLayout(layout_manifest)
+        self.layout_tools.addLayout(layout_primary)
+        self.layout_tools.addLayout(layout_secondary)
+
+        self.layout.addLayout(self.layout_tools)
+        self.layout.addWidget(self.manifest.group_box)
+        self.manifest.group_box.setMinimumWidth(300)
 
         # self._add_subsection(self.slicer)
         # self._add_subsection(self.exporter)
@@ -113,6 +129,14 @@ class MainWindow(QMainWindow):
 
     def on_change_slicer(self):
         self.exporter.disable()
+
+    def on_import(self):
+        self.slicer.enable()
+        self.manifest.update_table()
+
+    def on_slice(self):
+        self.exporter.enable()
+        self.manifest.update_table()
 
 
 class GenericSection(QWidget):
@@ -145,12 +169,12 @@ class GenericSection(QWidget):
 
 
 class ImporterMenu(GenericSection):
-
-    def __init__(self, controller, on_import, on_change):
+    def __init__(self, controller, on_import, on_change, encoder_options):
         super().__init__("importer")
         self.controller = controller
         self.on_import = on_import
         self.on_change = on_change
+        self.encoder_options = encoder_options
         self._init_layout()
         self._finalize_layout()
 
@@ -176,7 +200,10 @@ class ImporterMenu(GenericSection):
             self.enable_import,
             on_change=self.on_change
         )
-        self.encoder_subsection = EncoderSubsection(on_change=self.on_change)
+        self.encoder_subsection = EncoderSubsection(
+            on_change=self.on_change,
+            encoder_options=self.encoder_options
+        )
 
         self.button_import = QPushButton("Import")
         self.button_import.clicked.connect(self.import_source)
@@ -227,7 +254,7 @@ class ImporterMenu(GenericSection):
 
 class SourceSelectSubsection(GenericSection):
     def __init__(self, enable_import, on_change):
-        super().__init__("Source")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -294,11 +321,10 @@ class SourceSelectSubsection(GenericSection):
 
 
 class EncoderSubsection(GenericSection):
-    _encoder_options = VideoCompressionDefaults.encoder_config_options.keys()
-
-    def __init__(self, on_change):
-        super().__init__("encoder")
+    def __init__(self, on_change, encoder_options):
+        super().__init__("")
         self.on_change = on_change
+        self._encoder_options = encoder_options
         self._init_layout()
         self._finalize_layout()
 
@@ -536,10 +562,9 @@ class ExporterMenu(GenericSection):
         print(self.fpath_out())
 
 
-# TODO pick up here
 class DestinationSubsection(GenericSection):
     def __init__(self):
-        super().__init__("destination")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -579,10 +604,9 @@ class DestinationSubsection(GenericSection):
         return self._fpath_out
 
 
-# TODO pick up here
 class ComposerSubsection(GenericSection):
     def __init__(self):
-        super().__init__("composer")
+        super().__init__("")
         self._init_layout()
         self._finalize_layout()
 
@@ -618,6 +642,91 @@ class ComposerSubsection(GenericSection):
 
     def update_label_frequency(self, value):
         self.label_frequency.setText(f'Frequency: {value/2:.1f}')
+
+
+class ManifestSection(GenericSection):
+    header = [
+        "Source",
+        "Encoder",
+        "preset",
+        "qp",
+        "bitrate",
+        "superframe size",
+    ]
+    header_index = {key: val for val, key in enumerate(header)}
+
+    item_flags = Qt.ItemFlag.ItemIsEditable
+    # item_flags = Qt.ItemFlag.ItemIsSelectable & Qt.ItemFlag.ItemIsEditable
+
+    def __init__(self, controller, encoder_options):
+        super().__init__("manifest")
+        self.controller = controller
+        self.encoder_options = encoder_options
+        self._init_layout()
+        self._finalize_layout()
+
+    def _init_layout(self):
+        self.table = QTableWidget()
+        self.table.setRowCount(10)
+        self.table.setColumnCount(len(self.header))
+        for i, col in enumerate(self.header):
+            item = QTableWidgetItem(col)
+            item.setFlags(self.item_flags)
+            self.table.setHorizontalHeaderItem(i, item)
+
+        self.update_table()
+
+        self.layout.addWidget(self.table)
+        return
+
+    def _add_encode(self, fname_source: str, fname_encode: str, row: int):
+        item_source = QTableWidgetItem(fname_source)
+        item_source.setFlags(self.item_flags)
+        self.table.setItem(row, 0, item_source)
+
+        encode = self.controller.persistence.get_encode(fname_source, fname_encode)
+
+        for encoder in self.encoder_options:
+            if re.search(encoder, encode['command']):
+                item = QTableWidgetItem(encoder)
+                item.setFlags(self.item_flags)
+                break
+
+        self.table.setItem(row, 1, item)
+
+        for key, val in encode['parameters'].items():
+            col = self.header_index.get(key)
+            if col is None:
+                continue
+            else:
+                item = QTableWidgetItem(str(val))
+                item.setFlags(self.item_flags)
+                self.table.setItem(row, col, item)
+
+    def update_table(self):
+        row = 0
+        for fname_source, val in self.controller.persistence.manifest.encodes.items():
+            for fname_encode in val:
+                self._add_encode(
+                    fname_source=fname_source,
+                    fname_encode=fname_encode,
+                    row=row
+                )
+
+                slices_dict = self.controller.persistence.slices[fname_source].get(fname_encode, {})
+                if len(slices_dict) > 0:
+                    superframe_sizes = str(sorted([
+                        int(s) for s in slices_dict.keys()
+                    ])).strip('[').strip(']')
+                else:
+                    superframe_sizes = ""
+
+                item = QTableWidgetItem(superframe_sizes)
+                item.setFlags(self.item_flags)
+                col = self.header_index['superframe size']
+                self.table.setItem(row, col, item)
+
+                row += 1
 
 
 def run_app():

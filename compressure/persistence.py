@@ -474,9 +474,14 @@ class CompressureManifest(object):
             raise KeyError(msg)
 
         encode = self.get_encode(fpath_source, fpath_encode)
-        encode['slices']['superframe_size'] = {
-            superframe_size: str(self.get_slices_dir(fpath_encode, superframe_size))
-        }
+        if len(encode['slices'].get('superframe_size', {})) > 0:
+            encode['slices']['superframe_size'].update({
+                superframe_size: str(self.get_slices_dir(fpath_encode, superframe_size))
+            })
+        else:
+            encode['slices']['superframe_size'] = {
+                superframe_size: str(self.get_slices_dir(fpath_encode, superframe_size))
+            }
 
         # Reset lazy evaluation
         self._slices = None
