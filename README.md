@@ -1,10 +1,19 @@
 # Overview
 Compressure is a tool for video and image creation that hacks the time-dependence
 properties of video compression codecs (H.264, MPEG-4, etc.) by manipulating
-the frame timeline to break motion-estimation for new forms of movement. Below
-is just one example of the kinds of textures and colors we can create using
-this tool. For more examples, please see the [Gallery](#gallery) at the bottom
-of this README.
+the frame timeline to break motion-estimation for new forms of movement. In practice, we do this in a a few distinct steps:
+1. transcode source videos into specified format
+2. slice source videos into "superframes," or equal-sized chunks of adjacent frames
+3. compose slices/superframes such that the output repeats or skips frames in
+   the original, by navigating through a timeline of superframes forwards or
+   backwards
+
+We will elaborate on each of these steps, as well as how these steps work
+together to make these visuals, later in this README.
+
+Below is just one example of the kinds of textures and colors we can create
+using this tool. For more examples, please see the [Gallery](#gallery) at the
+bottom of this README.
 
 ![A single frame from a video created by mip using only Compressure on a source video](docs/imgs/mip-painting-motion.png)
 
@@ -38,19 +47,37 @@ seconds).
 
 ![Screen shot of the Compressure GUI](docs/imgs/compressure-gui.png)
 
-## Order of Operations
-Compressure is a data processing pipeline over which the user has some control.
-The following system diagram may be helpful in understanding how the user's
-input affects the process.
+Note that the GUI exposes four main components:
+1. Importer
+2. Slicer
+3. Exporter
+4. Manifest
 
-![Compressure system diagram](docs/imgs/system-diagram.png)
+The Importer, Slicer, and Exporter are designed to work in series: you use them
+in that order. In fact, you'll notice that the Slicer's "Slice" and Exporter's
+"Export" buttons are disabled until they can be used (in general, after you
+click "Import" and "Slice" respectively).
 
-Below we explain in greater detail the process outlined above.
+Note that each of the steps takes some time to process. If a cached version of
+a file is available, the system will grab that which is a very fast operation.
+The system caches files as much as possible to save time (defaults to
+`~/.cache/compressure`), which can grow to several GB quickly. Do be aware of
+this when using the system.
 
-### Import Sources
-Once you click "import," you may have to wait a moment for the system to import
-it. If the system's already encoded a video with a specific setting, it will
-cache it and use it later instead of re-encoding
+## Importer
+The Importer is where we specify the forward source, backward source, and
+encoder settings. The forward source is the source material that we will see
+when we navigate forward through the timeline. The backward source is the
+material we will see when navigating backwards through the timeline. If you
+only move forward through the timeline, you'll only see the forward source.
+However, since the system doesn't know how you'll specify the timeline it
+forces you to import both directions. You can always use the same video if you
+just wanna get going faster. We go into detail about each of the encoder
+settings later, but I encourage you to try different settings to see what you
+like! When you've selected your sources and set the encoder how you like it,
+you can import it. This will take some time, depending on the length/size of
+the sources and the encoder settings. Once the system's done importing, you'll
+notice the "Slice" button is enabled.
 
 1. select source files:
     1. forward - video used to start, used when moving forward in the timeline
@@ -64,19 +91,57 @@ cache it and use it later instead of re-encoding
         2. qp - another important parameter worth playing with, only available
            for `libx264`
         3. bitrate - similar to qp, only relevant for `h264_videotoolbox`
-### Slice videos into "superframes"
+
+## Slicer
 A "superframe" is a collection of adjacent frames (I like 6-10) which
 constitute the smallest unit within the compressure system. This is by far the
 longest part of the process and the point at which you can benefit from
 multiprocessing. The system will appear to freeze, but if you look over at the
 terminal at this time, you'll see it's working hard.
 
-### Export Video
+The Slicer is where we specify how many frames to include in each
+slice/superframe. Shorter slices (fewer frames) will allow you to produce a
+more abstract piece that diverges from the source, whereas longer slices will
+tend to appear more natural or evolve into chaos more slowly. Note that there's
+no "right" or "wrong" setting here, but it's helpful to know the framerate of
+the source video: a higher framerate source will correspond to shorter chunks
+of time per superframe than a lower framerate source (assuming the same
+superframe size). I like the appearance of videos made with superframe size
+~6-12, but follow your heart! Once you've set the superframe size, you can
+click "Slice" to perform the operation. Note that this often takes the longest
+time, and the system may appear to freeze. This can be mitigated somewhat by
+using more cores, but it's never going to be instantaneous.
+
+
+## Exporter
+The Exporter is perhaps the quickest operation, and is where we specify the
+timeline function. It defaults to using a scaled & offset negative cosine
+function over half of a period, though we plan to support other functions in
+the future. The number of superframes you choose will impact how long the
+output file is and how quickly the motion appears to be. Choose more
+superframes for slower motion and longer files. Note here that the output video
+length is also dependent on superframe size, so you will notice longer output
+videos if you use different superframe sizes, even if you use the same number
+of superframes.
+
 1. Compose with timeline operations - the default operation is a negative cosine:
     1. number of superframes to fit into the timeline - more is a longer film
        with slower motion, high is a shorter film with faster motion
     2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
 2. specify destination file
+
+## Manifest
+Finally, the Manifest shows you exactly what sources you've imported, how
+they've been encoded, and how they've been sliced. This updates automatically
+and is designed to help you make informed decisions about encoder and
+superframe selection, in case you need to save time or storage space.
+
+# System Diagram
+Compressure is a data processing pipeline over which the user has some control.
+The following system diagram may be helpful in understanding how the user's
+input affects the process.
+
+![Compressure system diagram](docs/imgs/system-diagram.png)
 
 # Development
 The following assumes the reader is using MacOS or a Debian derivative and is
