@@ -150,12 +150,6 @@ class CompressureSystem(object):
             slicer.slice_video(n_workers=n_workers)
             slices = self.persistence.add_slices(fpath_source, fpath_encode, superframe_size)
 
-            self.persistence.save()
-            self.persistence = CompressurePersistence(
-                fpath_manifest=self.persistence.manifest.fpath,
-                workdir=self.persistence.workdir,
-                verbosity=self.persistence.verbosity
-            )
         return slices
 
     def init_buffer(self,
