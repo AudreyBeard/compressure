@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self.slicer = SlicerMenu(
             n_workers=args.n_workers,
             controller=self.controller,
-            on_slice=self.exporter.enable,
+            on_slice=self.on_slice,
             on_change=self.on_change_slicer,
         )
         self.importer = ImporterMenu(
@@ -132,6 +132,10 @@ class MainWindow(QMainWindow):
 
     def on_import(self):
         self.slicer.enable()
+        self.manifest.update_table()
+
+    def on_slice(self):
+        self.exporter.enable()
         self.manifest.update_table()
 
 
@@ -647,6 +651,7 @@ class ManifestSection(GenericSection):
         "preset",
         "qp",
         "bitrate",
+        "superframe size",
     ]
     header_index = {key: val for val, key in enumerate(header)}
 
@@ -663,7 +668,7 @@ class ManifestSection(GenericSection):
     def _init_layout(self):
         self.table = QTableWidget()
         self.table.setRowCount(10)
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(len(self.header))
         for i, col in enumerate(self.header):
             item = QTableWidgetItem(col)
             item.setFlags(self.item_flags)
@@ -674,31 +679,53 @@ class ManifestSection(GenericSection):
         self.layout.addWidget(self.table)
         return
 
+    def _add_encode(self, fname_source: str, fname_encode: str, row: int):
+        item_source = QTableWidgetItem(fname_source)
+        item_source.setFlags(self.item_flags)
+        self.table.setItem(row, 0, item_source)
+
+        encode = self.controller.persistence.get_encode(fname_source, fname_encode)
+
+        for encoder in self.encoder_options:
+            if re.search(encoder, encode['command']):
+                item = QTableWidgetItem(encoder)
+                item.setFlags(self.item_flags)
+                break
+
+        self.table.setItem(row, 1, item)
+
+        for key, val in encode['parameters'].items():
+            col = self.header_index.get(key)
+            if col is None:
+                continue
+            else:
+                item = QTableWidgetItem(str(val))
+                item.setFlags(self.item_flags)
+                self.table.setItem(row, col, item)
+
     def update_table(self):
         row = 0
         for fname_source, val in self.controller.persistence.manifest.encodes.items():
             for fname_encode in val:
-                item_source = QTableWidgetItem(fname_source)
-                item_source.setFlags(self.item_flags)
-                self.table.setItem(row, 0, item_source)
+                self._add_encode(
+                    fname_source=fname_source,
+                    fname_encode=fname_encode,
+                    row=row
+                )
 
-                encode = self.controller.persistence.get_encode(fname_source, fname_encode)
-                for encoder in self.encoder_options:
-                    if re.search(encoder, encode['command']):
-                        item = QTableWidgetItem(encoder)
-                        item.setFlags(self.item_flags)
-                        break
+                slices_dict = self.controller.persistence.slices[fname_source].get(fname_encode, {})
+                if len(slices_dict) > 0:
+                    superframe_sizes = str(sorted([
+                        int(s) for s in slices_dict.keys()
+                    ])).strip('[').strip(']')
+                else:
+                    superframe_sizes = ""
 
-                self.table.setItem(row, 1, item)
+                item = QTableWidgetItem(superframe_sizes)
+                item.setFlags(self.item_flags)
+                col = self.header_index['superframe size']
+                self.table.setItem(row, col, item)
 
-                for key, val in encode['parameters'].items():
-                    col = self.header_index.get(key)
-                    if col is None:
-                        continue
-                    else:
-                        item = QTableWidgetItem(str(val))
-                        item.setFlags(self.item_flags)
-                        self.table.setItem(row, col, item)
                 row += 1
 
 
