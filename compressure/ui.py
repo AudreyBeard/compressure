@@ -52,6 +52,8 @@ logging.basicConfig(filename=LOG_FPATH, level=LOG_LEVEL)
 
 
 class MainWindow(QMainWindow):
+    encoder_options = VideoCompressionDefaults.encoder_config_options.keys()
+
     def __init__(self):
         super().__init__()
         self._init_layout()
@@ -79,10 +81,14 @@ class MainWindow(QMainWindow):
         )
         self.importer = ImporterMenu(
             controller=self.controller,
-            on_import=self.slicer.enable,
+            on_import=self.on_import,
             on_change=self.on_change_importer,
+            encoder_options=self.encoder_options,
         )
-        self.manifest = ManifestSection(controller=self.controller)
+        self.manifest = ManifestSection(
+            controller=self.controller,
+            encoder_options=self.encoder_options
+        )
 
         self.slicer.fpath_source_f = self.importer.fpath_source_f
         self.slicer.fpath_encode_f = self.importer.fpath_encode_f
@@ -124,6 +130,10 @@ class MainWindow(QMainWindow):
     def on_change_slicer(self):
         self.exporter.disable()
 
+    def on_import(self):
+        self.slicer.enable()
+        self.manifest.update_table()
+
 
 class GenericSection(QWidget):
     def __init__(self, name: str, horizontal: bool = False):
@@ -155,12 +165,12 @@ class GenericSection(QWidget):
 
 
 class ImporterMenu(GenericSection):
-
-    def __init__(self, controller, on_import, on_change):
+    def __init__(self, controller, on_import, on_change, encoder_options):
         super().__init__("importer")
         self.controller = controller
         self.on_import = on_import
         self.on_change = on_change
+        self.encoder_options = encoder_options
         self._init_layout()
         self._finalize_layout()
 
@@ -186,7 +196,10 @@ class ImporterMenu(GenericSection):
             self.enable_import,
             on_change=self.on_change
         )
-        self.encoder_subsection = EncoderSubsection(on_change=self.on_change)
+        self.encoder_subsection = EncoderSubsection(
+            on_change=self.on_change,
+            encoder_options=self.encoder_options
+        )
 
         self.button_import = QPushButton("Import")
         self.button_import.clicked.connect(self.import_source)
@@ -304,11 +317,10 @@ class SourceSelectSubsection(GenericSection):
 
 
 class EncoderSubsection(GenericSection):
-    _encoder_options = VideoCompressionDefaults.encoder_config_options.keys()
-
-    def __init__(self, on_change):
+    def __init__(self, on_change, encoder_options):
         super().__init__("")
         self.on_change = on_change
+        self._encoder_options = encoder_options
         self._init_layout()
         self._finalize_layout()
 
@@ -638,9 +650,13 @@ class ManifestSection(GenericSection):
     ]
     header_index = {key: val for val, key in enumerate(header)}
 
-    def __init__(self, controller):
+    item_flags = Qt.ItemFlag.ItemIsEditable
+    # item_flags = Qt.ItemFlag.ItemIsSelectable & Qt.ItemFlag.ItemIsEditable
+
+    def __init__(self, controller, encoder_options):
         super().__init__("manifest")
         self.controller = controller
+        self.encoder_options = encoder_options
         self._init_layout()
         self._finalize_layout()
 
@@ -650,6 +666,7 @@ class ManifestSection(GenericSection):
         self.table.setColumnCount(5)
         for i, col in enumerate(self.header):
             item = QTableWidgetItem(col)
+            item.setFlags(self.item_flags)
             self.table.setHorizontalHeaderItem(i, item)
 
         self.update_table()
@@ -662,17 +679,16 @@ class ManifestSection(GenericSection):
         for fname_source, val in self.controller.persistence.manifest.encodes.items():
             for fname_encode in val:
                 item_source = QTableWidgetItem(fname_source)
+                item_source.setFlags(self.item_flags)
                 self.table.setItem(row, 0, item_source)
 
                 encode = self.controller.persistence.get_encode(fname_source, fname_encode)
-                for encoder in [
-                    "libx264",
-                    "mpeg4",
-                    "h264_videotoolbox",
-                ]:
+                for encoder in self.encoder_options:
                     if re.search(encoder, encode['command']):
                         item = QTableWidgetItem(encoder)
+                        item.setFlags(self.item_flags)
                         break
+
                 self.table.setItem(row, 1, item)
 
                 for key, val in encode['parameters'].items():
@@ -681,6 +697,7 @@ class ManifestSection(GenericSection):
                         continue
                     else:
                         item = QTableWidgetItem(str(val))
+                        item.setFlags(self.item_flags)
                         self.table.setItem(row, col, item)
                 row += 1
 
