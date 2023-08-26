@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSlider,
     QSpinBox,
+    QTableWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
             on_import=self.slicer.enable,
             on_change=self.on_change_importer,
         )
+        self.manifest = ManifestSection(controller=self.controller)
 
         self.slicer.fpath_source_f = self.importer.fpath_source_f
         self.slicer.fpath_encode_f = self.importer.fpath_encode_f
@@ -87,6 +89,9 @@ class MainWindow(QMainWindow):
         self.exporter.dpath_slices_b = self.slicer.dpath_slices_b
         self.exporter.superframe_size = self.slicer.slider_superframe_size.value
 
+        layout_manifest = QHBoxLayout()
+        layout_manifest.addWidget(self.manifest.group_box)
+
         layout_primary = QHBoxLayout()
         layout_primary.addWidget(self.importer.group_box)
 
@@ -94,6 +99,7 @@ class MainWindow(QMainWindow):
         layout_secondary.addWidget(self.slicer.group_box)
         layout_secondary.addWidget(self.exporter.group_box)
 
+        self.layout.addLayout(layout_manifest)
         self.layout.addLayout(layout_primary)
         self.layout.addLayout(layout_secondary)
 
@@ -619,12 +625,15 @@ class ComposerSubsection(GenericSection):
 
 
 class ManifestSection(GenericSection):
-    def __init__(self):
-        super.__init__("manifest")
+    def __init__(self, controller):
+        super().__init__("manifest")
+        self.controller = controller
         self._init_layout()
         self._finalize_layout()
 
     def _init_layout(self):
+        self.table = QTableWidget()
+        self.layout.addWidget(self.table)
         return
 
 
