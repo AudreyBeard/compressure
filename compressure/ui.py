@@ -1,6 +1,7 @@
 from copy import deepcopy
 import logging
 from pathlib import Path
+import re
 from typing import (
     List,
 )
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
     QSlider,
     QSpinBox,
     QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -57,7 +59,8 @@ class MainWindow(QMainWindow):
     def _init_layout(self):
         self.setWindowTitle(APP_NAME)
 
-        self.layout = QHBoxLayout()
+        self.layout = QVBoxLayout()
+        self.layout_tools = QHBoxLayout()
 
         args = parse_args(ignore_requirements=True)
         self.controller = CompressureSystem(
@@ -89,9 +92,6 @@ class MainWindow(QMainWindow):
         self.exporter.dpath_slices_b = self.slicer.dpath_slices_b
         self.exporter.superframe_size = self.slicer.slider_superframe_size.value
 
-        layout_manifest = QHBoxLayout()
-        layout_manifest.addWidget(self.manifest.group_box)
-
         layout_primary = QHBoxLayout()
         layout_primary.addWidget(self.importer.group_box)
 
@@ -99,9 +99,13 @@ class MainWindow(QMainWindow):
         layout_secondary.addWidget(self.slicer.group_box)
         layout_secondary.addWidget(self.exporter.group_box)
 
-        self.layout.addLayout(layout_manifest)
-        self.layout.addLayout(layout_primary)
-        self.layout.addLayout(layout_secondary)
+        #self.layout_tools.addLayout(layout_manifest)
+        self.layout_tools.addLayout(layout_primary)
+        self.layout_tools.addLayout(layout_secondary)
+
+        self.layout.addLayout(self.layout_tools)
+        self.layout.addWidget(self.manifest.group_box)
+        self.manifest.group_box.setMinimumWidth(300)
 
         # self._add_subsection(self.slicer)
         # self._add_subsection(self.exporter)
@@ -625,6 +629,15 @@ class ComposerSubsection(GenericSection):
 
 
 class ManifestSection(GenericSection):
+    header = [
+        "Source",
+        "Encoder",
+        "preset",
+        "qp",
+        "bitrate",
+    ]
+    header_index = {key: val for val, key in enumerate(header)}
+
     def __init__(self, controller):
         super().__init__("manifest")
         self.controller = controller
@@ -633,8 +646,43 @@ class ManifestSection(GenericSection):
 
     def _init_layout(self):
         self.table = QTableWidget()
+        self.table.setRowCount(10)
+        self.table.setColumnCount(5)
+        for i, col in enumerate(self.header):
+            item = QTableWidgetItem(col)
+            self.table.setHorizontalHeaderItem(i, item)
+
+        self.update_table()
+
         self.layout.addWidget(self.table)
         return
+
+    def update_table(self):
+        row = 0
+        for fname_source, val in self.controller.persistence.manifest.encodes.items():
+            for fname_encode in val:
+                item_source = QTableWidgetItem(fname_source)
+                self.table.setItem(row, 0, item_source)
+
+                encode = self.controller.persistence.get_encode(fname_source, fname_encode)
+                for encoder in [
+                    "libx264",
+                    "mpeg4",
+                    "h264_videotoolbox",
+                ]:
+                    if re.search(encoder, encode['command']):
+                        item = QTableWidgetItem(encoder)
+                        break
+                self.table.setItem(row, 1, item)
+
+                for key, val in encode['parameters'].items():
+                    col = self.header_index.get(key)
+                    if col is None:
+                        continue
+                    else:
+                        item = QTableWidgetItem(str(val))
+                        self.table.setItem(row, col, item)
+                row += 1
 
 
 def run_app():
