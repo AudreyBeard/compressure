@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+import pyqtgraph
 
 from compressure.compression import (
     VideoCompressionDefaults,
@@ -137,6 +138,7 @@ class MainWindow(QMainWindow):
     def on_slice(self):
         self.exporter.enable()
         self.manifest.update_table()
+        self.exporter.update_all()
 
 
 class GenericSection(QWidget):
@@ -508,9 +510,13 @@ class ExporterMenu(GenericSection):
         self.subsection_destination.enable = self.enable
         # self.subsection_destination.on_change = self.on_change
 
-        self.subsection_compose = ComposerSubsection()
+        self.subsection_compose = ComposerSubsection(
+            on_change=self.update_timeline,
+        )
         # self.subsection_compose.on_change = self.on_change
+        self._timeline = []
         self.subsection_compose.fpath_out = self.subsection_destination.fpath_out
+        self.subsection_compose.timeline = self.timeline
 
         self.button = QPushButton("Export")
         self.button.clicked.connect(self.compose_slices)
@@ -533,33 +539,47 @@ class ExporterMenu(GenericSection):
         self.button.setEnabled(is_enabled)
 
     def compose_slices(self):
-        buffer = self.controller.init_buffer(
+        initial_state = deepcopy(self.buffer().state)
+
+        if self.timeline()[0] == initial_state:
+            video_list = []
+        else:
+            video_list = [initial_state]
+
+        for i, current_slice in enumerate(self.timeline()):
+            video_list.append(self.buffer().step(to=current_slice))
+
+        print(f"Concatenating {len(video_list)} videos")
+        concat_videos(video_list, fpath_out=self.fpath_out())
+        print(self.fpath_out())
+
+    def update_timeline(self):
+        print("calling update_timeline")
+        self._buffer = self.controller.init_buffer(
             self.dpath_slices_f(),
             self.dpath_slices_b(),
             self.superframe_size()
         )
 
-        initial_state = deepcopy(buffer.state)
-        timeline = generate_timeline_function(
+        self._timeline = generate_timeline_function(
             self.superframe_size(),
-            len(buffer),
+            len(self.buffer()),
             frequency=self.subsection_compose.slider_frequency.value() / 2,
             n_superframes=self.subsection_compose.spinbox_superframes.value() - 1,
             scaled=True,
             rectified=False
         )
+        print(self.timeline())
 
-        if timeline[0] == initial_state:
-            video_list = []
-        else:
-            video_list = [initial_state]
+    def buffer(self):
+        return self._buffer
 
-        for i, current_slice in enumerate(timeline):
-            video_list.append(buffer.step(to=current_slice))
+    def timeline(self):
+        return self._timeline
 
-        print(f"Concatenating {len(video_list)} videos")
-        concat_videos(video_list, fpath_out=self.fpath_out())
-        print(self.fpath_out())
+    def update_all(self):
+        self.update_timeline()
+        self.subsection_compose.update_graph()
 
 
 class DestinationSubsection(GenericSection):
@@ -605,8 +625,11 @@ class DestinationSubsection(GenericSection):
 
 
 class ComposerSubsection(GenericSection):
-    def __init__(self):
+    def __init__(self, on_change):
         super().__init__("")
+        self.on_change = on_change
+        self.dpath_slices_f = None
+        self.dpath_slices_b = None
         self._init_layout()
         self._finalize_layout()
 
@@ -622,7 +645,7 @@ class ComposerSubsection(GenericSection):
         self.slider_frequency.setMaximum(16)
         self.slider_frequency.setSingleStep(1)
         self.slider_frequency.setValue(1)
-        self.update_label_frequency(1)
+        self.update_label_frequency(1, no_change=True)
 
         layout_frequency.addWidget(self.label_frequency)
         layout_frequency.addWidget(self.slider_frequency)
@@ -633,15 +656,28 @@ class ComposerSubsection(GenericSection):
         self.spinbox_superframes.setMaximum(10000)
         self.spinbox_superframes.setSingleStep(1)
         self.spinbox_superframes.setValue(200)
+        self.spinbox_superframes.valueChanged.connect(self.on_change)
 
         layout_superframes.addWidget(self.label_superframes)
         layout_superframes.addWidget(self.spinbox_superframes)
 
+        self.graphWidget = pyqtgraph.PlotWidget()
+        self.pen = self.graphWidget.plot()
+        self.pen.setPen((200, 200, 100))
+
+        self.layout.addWidget(self.graphWidget)
         self.layout.addLayout(layout_frequency)
         self.layout.addLayout(layout_superframes)
 
-    def update_label_frequency(self, value):
+    def update_label_frequency(self, value, no_change=False):
         self.label_frequency.setText(f'Frequency: {value/2:.1f}')
+        if self.dpath_slices_f is not None:
+            self.on_change()
+
+    def update_graph(self):
+        print("updating graph")
+        print(self.timeline())
+        self.graphWidget.plot(self.timeline())
 
 
 class ManifestSection(GenericSection):
