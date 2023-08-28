@@ -7,7 +7,9 @@ from typing import (
 )
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import (
+    QIcon,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -63,7 +65,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_NAME)
 
         self.layout = QVBoxLayout()
-        self.layout_tools = QHBoxLayout()
+        self.layout_interactive = QHBoxLayout()
 
         args = parse_args(ignore_requirements=True)
         self.controller = CompressureSystem(
@@ -97,20 +99,22 @@ class MainWindow(QMainWindow):
         self.slicer.fpath_encode_b = self.importer.fpath_encode_b
         self.exporter.dpath_slices_f = self.slicer.dpath_slices_f
         self.exporter.dpath_slices_b = self.slicer.dpath_slices_b
+        self.exporter.subsection_compose.dpath_slices_f = self.slicer.dpath_slices_f
+        self.exporter.subsection_compose.dpath_slices_b = self.slicer.dpath_slices_b
         self.exporter.superframe_size = self.slicer.slider_superframe_size.value
 
-        layout_primary = QHBoxLayout()
-        layout_primary.addWidget(self.importer.group_box)
+        layout_left = QVBoxLayout()
+        layout_left.addWidget(self.importer.group_box)
+        layout_left.addWidget(self.slicer.group_box)
 
-        layout_secondary = QVBoxLayout()
-        layout_secondary.addWidget(self.slicer.group_box)
-        layout_secondary.addWidget(self.exporter.group_box)
+        layout_right = QVBoxLayout()
+        layout_right.addWidget(self.exporter.group_box)
 
-        #self.layout_tools.addLayout(layout_manifest)
-        self.layout_tools.addLayout(layout_primary)
-        self.layout_tools.addLayout(layout_secondary)
+        #self.layout_interactive.addLayout(layout_manifest)
+        self.layout_interactive.addLayout(layout_left)
+        self.layout_interactive.addLayout(layout_right)
 
-        self.layout.addLayout(self.layout_tools)
+        self.layout.addLayout(self.layout_interactive)
         self.layout.addWidget(self.manifest.group_box)
         self.manifest.group_box.setMinimumWidth(300)
 
@@ -511,7 +515,7 @@ class ExporterMenu(GenericSection):
         # self.subsection_destination.on_change = self.on_change
 
         self.subsection_compose = ComposerSubsection(
-            on_change=self.update_timeline,
+            on_change=self.update_all,
         )
         # self.subsection_compose.on_change = self.on_change
         self._timeline = []
@@ -554,7 +558,6 @@ class ExporterMenu(GenericSection):
         print(self.fpath_out())
 
     def update_timeline(self):
-        print("calling update_timeline")
         self._buffer = self.controller.init_buffer(
             self.dpath_slices_f(),
             self.dpath_slices_b(),
@@ -564,12 +567,11 @@ class ExporterMenu(GenericSection):
         self._timeline = generate_timeline_function(
             self.superframe_size(),
             len(self.buffer()),
-            frequency=self.subsection_compose.slider_frequency.value() / 2,
+            frequency=self.subsection_compose.slider_periods.value() / 2,
             n_superframes=self.subsection_compose.spinbox_superframes.value() - 1,
             scaled=True,
             rectified=False
         )
-        print(self.timeline())
 
     def buffer(self):
         return self._buffer
@@ -634,21 +636,21 @@ class ComposerSubsection(GenericSection):
         self._finalize_layout()
 
     def _init_layout(self):
-        layout_frequency = QHBoxLayout()
+        layout_periods = QHBoxLayout()
         layout_superframes = QHBoxLayout()
 
-        self.label_frequency = QLabel()
-        self.slider_frequency = QSlider(Qt.Orientation.Horizontal)
-        self.slider_frequency.valueChanged.connect(self.update_label_frequency)
+        self.label_periods = QLabel()
+        self.slider_periods = QSlider(Qt.Orientation.Horizontal)
+        self.slider_periods.valueChanged.connect(self.update_label_periods)
 
-        self.slider_frequency.setMinimum(1)
-        self.slider_frequency.setMaximum(16)
-        self.slider_frequency.setSingleStep(1)
-        self.slider_frequency.setValue(1)
-        self.update_label_frequency(1, no_change=True)
+        self.slider_periods.setMinimum(1)
+        self.slider_periods.setMaximum(16)
+        self.slider_periods.setSingleStep(1)
+        self.slider_periods.setValue(1)
+        self.update_label_periods(1)
 
-        layout_frequency.addWidget(self.label_frequency)
-        layout_frequency.addWidget(self.slider_frequency)
+        layout_periods.addWidget(self.label_periods)
+        layout_periods.addWidget(self.slider_periods)
 
         self.label_superframes = QLabel("# Superframes")
         self.spinbox_superframes = QSpinBox()
@@ -662,22 +664,22 @@ class ComposerSubsection(GenericSection):
         layout_superframes.addWidget(self.spinbox_superframes)
 
         self.graphWidget = pyqtgraph.PlotWidget()
+        self.graphWidget.setLabel('bottom', "Destination Superframe")
+        self.graphWidget.setLabel('left', "Source Superframe")
         self.pen = self.graphWidget.plot()
         self.pen.setPen((200, 200, 100))
 
         self.layout.addWidget(self.graphWidget)
-        self.layout.addLayout(layout_frequency)
+        self.layout.addLayout(layout_periods)
         self.layout.addLayout(layout_superframes)
 
-    def update_label_frequency(self, value, no_change=False):
-        self.label_frequency.setText(f'Frequency: {value/2:.1f}')
+    def update_label_periods(self, value):
+        self.label_periods.setText(f'Periods: {value/2:.1f}')
         if self.dpath_slices_f is not None:
             self.on_change()
 
     def update_graph(self):
-        print("updating graph")
-        print(self.timeline())
-        self.graphWidget.plot(self.timeline())
+        self.graphWidget.plot(self.timeline(), clear=True)
 
 
 class ManifestSection(GenericSection):
@@ -712,7 +714,15 @@ class ManifestSection(GenericSection):
 
         self.update_table()
 
+        self.table.setMinimumHeight(175)
+        #verticalSpacer = QSpacerItem(
+        #    20,
+        #    40,
+        #    #QSizePolicy.Minimum,
+        #    #QSizePolicy.Expanding
+        #)
         self.layout.addWidget(self.table)
+        #self.layout.addItem(verticalSpacer)
         return
 
     def _add_encode(self, fname_source: str, fname_encode: str, row: int):
