@@ -124,10 +124,18 @@ length is also dependent on superframe size, so you will notice longer output
 videos if you use different superframe sizes, even if you use the same number
 of superframes.
 
+You will note the Exporter section has a graph which shows the timeline
+function - how we will move through the superframes from the sources as we
+move through the destination/output video. Since the period slider defaults to
+0.5, you'll see the timeline visualizer defaults to half of a full period.
+You'll notice this updates when you change the period. Note that the timeline
+function can only be calculated after the source has been sliced, so it starts
+blank and will be updated every time you slice with a new superframe size.
+
 1. Compose with timeline operations - the default operation is a negative cosine:
     1. number of superframes to fit into the timeline - more is a longer film
        with slower motion, high is a shorter film with faster motion
-    2. frequency (in $\pi$ radians) from the beginning to the end of the timeline
+    2. Number of periods in the timeline function from the beginning to the end of the timeline
 2. specify destination file
 
 ## Manifest
