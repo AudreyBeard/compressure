@@ -713,16 +713,9 @@ class ManifestSection(GenericSection):
             self.table.setHorizontalHeaderItem(i, item)
 
         self.update_table()
-
         self.table.setMinimumHeight(175)
-        #verticalSpacer = QSpacerItem(
-        #    20,
-        #    40,
-        #    #QSizePolicy.Minimum,
-        #    #QSizePolicy.Expanding
-        #)
+
         self.layout.addWidget(self.table)
-        #self.layout.addItem(verticalSpacer)
         return
 
     def _add_encode(self, fname_source: str, fname_encode: str, row: int):
