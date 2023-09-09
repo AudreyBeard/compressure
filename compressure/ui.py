@@ -564,13 +564,16 @@ class ExporterMenu(GenericSection):
             self.superframe_size()
         )
 
+        # TODO add second slider integration
         self._timeline = generate_timeline_function(
             self.superframe_size(),
             len(self.buffer()),
             frequency=self.subsection_compose.slider_periods.value() / 2,
             n_superframes=self.subsection_compose.spinbox_superframes.value() - 1,
             scaled=True,
-            rectified=False
+            rectified=False,
+            frequency_secondary=self.subsection_compose.slider_secondary_periods.value() / 2,
+            amplitude_secondary=self.subsection_compose.slider_amplitude_secondary.value() / 10,
         )
 
     def buffer(self):
@@ -636,21 +639,59 @@ class ComposerSubsection(GenericSection):
         self._finalize_layout()
 
     def _init_layout(self):
-        layout_periods = QHBoxLayout()
+        layout_periods = QVBoxLayout()
+        layout_periods_primary = QHBoxLayout()
+        layout_periods_secondary = QHBoxLayout()
+        layout_amplitude_secondary = QHBoxLayout()
+        layout_osc_secondary = QVBoxLayout()
         layout_superframes = QHBoxLayout()
 
         self.label_periods = QLabel()
         self.slider_periods = QSlider(Qt.Orientation.Horizontal)
         self.slider_periods.valueChanged.connect(self.update_label_periods)
 
+        self.label_secondary_periods = QLabel()
+        self.label_amplitude_secondary = QLabel()
+
+        self.slider_secondary_periods = QSlider(Qt.Orientation.Horizontal)
+        self.slider_amplitude_secondary = QSlider(Qt.Orientation.Horizontal)
+
+        self.slider_secondary_periods.valueChanged.connect(self.update_label_secondary_periods)
+        self.slider_amplitude_secondary.valueChanged.connect(self.update_label_amplitude_secondary)
+
         self.slider_periods.setMinimum(1)
         self.slider_periods.setMaximum(16)
         self.slider_periods.setSingleStep(1)
         self.slider_periods.setValue(1)
-        self.update_label_periods(1)
 
-        layout_periods.addWidget(self.label_periods)
-        layout_periods.addWidget(self.slider_periods)
+        self.slider_secondary_periods.setMinimum(0)
+        self.slider_secondary_periods.setMaximum(64)
+        self.slider_secondary_periods.setSingleStep(1)
+        self.slider_secondary_periods.setValue(0)
+
+        self.slider_amplitude_secondary.setMinimum(0)
+        self.slider_amplitude_secondary.setMaximum(10)
+        self.slider_amplitude_secondary.setSingleStep(1)
+        self.slider_amplitude_secondary.setValue(0)
+
+        self.update_label_periods(1)
+        self.update_label_secondary_periods(0)
+        self.update_label_amplitude_secondary(0)
+
+        layout_periods_primary.addWidget(self.label_periods)
+        layout_periods_primary.addWidget(self.slider_periods)
+
+        layout_periods_secondary.addWidget(self.label_secondary_periods)
+        layout_periods_secondary.addWidget(self.slider_secondary_periods)
+
+        layout_amplitude_secondary.addWidget(self.label_amplitude_secondary)
+        layout_amplitude_secondary.addWidget(self.slider_amplitude_secondary)
+
+        layout_osc_secondary.addLayout(layout_periods_secondary)
+        layout_osc_secondary.addLayout(layout_amplitude_secondary)
+
+        layout_periods.addLayout(layout_periods_primary)
+        layout_periods.addLayout(layout_osc_secondary)
 
         self.label_superframes = QLabel("# Superframes")
         self.spinbox_superframes = QSpinBox()
@@ -674,7 +715,17 @@ class ComposerSubsection(GenericSection):
         self.layout.addLayout(layout_superframes)
 
     def update_label_periods(self, value):
-        self.label_periods.setText(f'Periods: {value/2:.1f}')
+        self.label_periods.setText(f'Periods (Primary): {value/2:.1f}')
+        if self.dpath_slices_f is not None:
+            self.on_change()
+
+    def update_label_secondary_periods(self, value):
+        self.label_secondary_periods.setText(f'Periods (Secondary): {value/2:.1f}')
+        if self.dpath_slices_f is not None:
+            self.on_change()
+
+    def update_label_amplitude_secondary(self, value):
+        self.label_amplitude_secondary.setText(f'Relative Amplitude (Secondary): {value/10:.1f}')
         if self.dpath_slices_f is not None:
             self.on_change()
 
