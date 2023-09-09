@@ -246,33 +246,36 @@ class VideoSliceBufferReversible(object):
         return len(self.buffer_forward)
 
 
-def generate_timeline_function(superframe_size, len_lvb,
-                               n_superframes=500, category="sinusoid",
-                               frequency=1, scaled=False, rectified=True):
+def generate_timeline_function(
+    superframe_size,
+    len_lvb,
+    n_superframes=500,
+    category="sinusoid",
+    frequency=1,
+    scaled=True,
+    rectified=False,
+    frequency_secondary=0,
+    amplitude_secondary=0,
+):
+    #if category == "sinusoid":
     if category == "sinusoid":
-        if scaled and rectified:
-            raise ValueError("either scaled or rectified must be False")
-
+        # elif category == "compound-sinusoid":
         locations = -np.cos(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
+        ) - amplitude_secondary * np.cos(
+            np.linspace(0, 2 * np.pi * frequency_secondary, n_superframes)
         )
-        if rectified:
-            locations[locations < 0] = -locations[locations < 0]
-            locations = locations * (len_lvb - 1)
-        elif scaled:
-            locations = (locations - locations.min()) / (locations.max() - locations.min())
-            locations = locations * (len_lvb - 2) + 1
-
-        return locations.astype(int)
-
-    elif category == "compound-sinusoid":
-        locations = np.sin(
-            np.linspace(0, 2 * np.pi * frequency, n_superframes)
-        ) * (len_lvb)
-        locations[locations < 0] = -locations[locations < 0]
-        return locations.astype(int)
     else:
         raise NotImplementedError(f"can't parse category {category} yet")
+
+    if rectified:
+        locations[locations < 0] = -locations[locations < 0]
+        locations = locations * (len_lvb - 1)
+    elif scaled:
+        locations = (locations - locations.min()) / (locations.max() - locations.min())
+        locations = locations * (len_lvb - 2) + 1
+
+    return locations.astype(int)
 
 
 def construct_encoder_config(encoder, user_specified_config):
