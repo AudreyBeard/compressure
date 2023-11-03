@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSlider,
     QSpinBox,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -392,7 +393,7 @@ class EncoderSubsection(GenericSection):
         self.layout.addLayout(layout_encoder_config)
 
         self.encoder_config_options['qp'].setValue(23)
-        self.encoder_config_options['preset'].setCurrentIndex(5)
+        self.encoder_config_options['preset'].setCurrentIndex(0)
         self.encoder_config_options['bitrate'].setCurrentIndex(3)
 
         self.encoder_select.setCurrentIndex(1)
@@ -564,6 +565,8 @@ class ExporterMenu(GenericSection):
             self.superframe_size()
         )
 
+        # TODO check which tab is active and use that
+
         # TODO add second slider integration
         self._timeline = generate_timeline_function(
             self.superframe_size(),
@@ -573,7 +576,9 @@ class ExporterMenu(GenericSection):
             scaled=True,
             rectified=False,
             frequency_secondary=self.subsection_compose.slider_secondary_periods.value() / 2,
-            amplitude_secondary=self.subsection_compose.slider_amplitude_secondary.value() / 10,
+            amplitude_secondary=self.subsection_compose.slider_amplitude_secondary.value() * self.amplitude_scale_factor,
+            category="sinusoid",
+            #category="supersaw",
         )
 
     def buffer(self):
@@ -630,6 +635,8 @@ class DestinationSubsection(GenericSection):
 
 
 class ComposerSubsection(GenericSection):
+    amplitude_scale_factor = 1 / 100
+
     def __init__(self, on_change):
         super().__init__("")
         self.on_change = on_change
@@ -639,6 +646,28 @@ class ComposerSubsection(GenericSection):
         self._finalize_layout()
 
     def _init_layout(self):
+        tab_function = QTabWidget()
+
+        widget_sinusoid = QWidget()
+        widget_supersaw = QWidget()
+
+        self._init_sinusoid_tab(widget_sinusoid)
+        self._init_supersaw_tab(widget_supersaw)
+
+        tab_function.addTab(widget_sinusoid, "Sinusoid")
+        tab_function.addTab(widget_supersaw, "Supersaw")
+
+        self.graphWidget = pyqtgraph.PlotWidget()
+        self.graphWidget.setLabel('bottom', "Destination Superframe")
+        self.graphWidget.setLabel('left', "Source Superframe")
+        self.pen = self.graphWidget.plot()
+        self.pen.setPen((200, 200, 100))
+
+        self.layout.addWidget(self.graphWidget)
+        self.layout.addWidget(tab_function)
+
+    def _init_sinusoid_tab(self, widget_sinusoid):
+        layout = QVBoxLayout()
         layout_periods = QVBoxLayout()
         layout_periods_primary = QHBoxLayout()
         layout_periods_secondary = QHBoxLayout()
@@ -670,7 +699,7 @@ class ComposerSubsection(GenericSection):
         self.slider_secondary_periods.setValue(0)
 
         self.slider_amplitude_secondary.setMinimum(0)
-        self.slider_amplitude_secondary.setMaximum(10)
+        self.slider_amplitude_secondary.setMaximum(20)
         self.slider_amplitude_secondary.setSingleStep(1)
         self.slider_amplitude_secondary.setValue(0)
 
@@ -704,15 +733,67 @@ class ComposerSubsection(GenericSection):
         layout_superframes.addWidget(self.label_superframes)
         layout_superframes.addWidget(self.spinbox_superframes)
 
-        self.graphWidget = pyqtgraph.PlotWidget()
-        self.graphWidget.setLabel('bottom', "Destination Superframe")
-        self.graphWidget.setLabel('left', "Source Superframe")
-        self.pen = self.graphWidget.plot()
-        self.pen.setPen((200, 200, 100))
+        layout.addLayout(layout_periods)
+        layout.addLayout(layout_superframes)
+        widget_sinusoid.setLayout(layout)
 
-        self.layout.addWidget(self.graphWidget)
-        self.layout.addLayout(layout_periods)
-        self.layout.addLayout(layout_superframes)
+    def _init_supersaw_tab(self, widget_parent):
+        layout = QVBoxLayout()
+        layout_periods = QVBoxLayout()
+        layout_periods_primary = QHBoxLayout()
+        layout_amplitude_secondary = QHBoxLayout()
+        layout_osc_secondary = QVBoxLayout()
+        layout_superframes = QHBoxLayout()
+
+        self.label_periods = QLabel()
+        self.slider_periods = QSlider(Qt.Orientation.Horizontal)
+        self.slider_periods.valueChanged.connect(self.update_label_periods)
+
+        self.label_secondary_periods = QLabel()
+        self.label_amplitude_secondary = QLabel()
+
+        self.slider_amplitude_secondary = QSlider(Qt.Orientation.Horizontal)
+
+        self.slider_amplitude_secondary.valueChanged.connect(self.update_label_amplitude_secondary_supersaw)
+
+        self.slider_periods.setMinimum(1)
+        self.slider_periods.setMaximum(16)
+        self.slider_periods.setSingleStep(1)
+        self.slider_periods.setValue(1)
+
+        self.slider_amplitude_secondary.setMinimum(0)
+        self.slider_amplitude_secondary.setMaximum(20)
+        self.slider_amplitude_secondary.setSingleStep(1)
+        self.slider_amplitude_secondary.setValue(1)
+
+        self.update_label_periods(1)
+        self.update_label_amplitude_secondary_supersaw(1)
+
+        layout_periods_primary.addWidget(self.label_periods)
+        layout_periods_primary.addWidget(self.slider_periods)
+
+        layout_amplitude_secondary.addWidget(self.label_amplitude_secondary)
+        layout_amplitude_secondary.addWidget(self.slider_amplitude_secondary)
+
+        layout_osc_secondary.addLayout(layout_amplitude_secondary)
+
+        layout_periods.addLayout(layout_periods_primary)
+        layout_periods.addLayout(layout_osc_secondary)
+
+        self.label_superframes = QLabel("# Superframes")
+        self.spinbox_superframes = QSpinBox()
+        self.spinbox_superframes.setMinimum(10)
+        self.spinbox_superframes.setMaximum(10000)
+        self.spinbox_superframes.setSingleStep(1)
+        self.spinbox_superframes.setValue(200)
+        self.spinbox_superframes.valueChanged.connect(self.on_change)
+
+        layout_superframes.addWidget(self.label_superframes)
+        layout_superframes.addWidget(self.spinbox_superframes)
+
+        layout.addLayout(layout_periods)
+        layout.addLayout(layout_superframes)
+        widget_parent.setLayout(layout)
 
     def update_label_periods(self, value):
         self.label_periods.setText(f'Periods (Primary): {value/2:.1f}')
@@ -725,7 +806,16 @@ class ComposerSubsection(GenericSection):
             self.on_change()
 
     def update_label_amplitude_secondary(self, value):
-        self.label_amplitude_secondary.setText(f'Relative Amplitude (Secondary): {value/10:.1f}')
+        self.amplitude_scale_factor = 1 / 100
+        amplitude_value = value * self.amplitude_scale_factor
+        self.label_amplitude_secondary.setText(f'Relative Amplitude (Secondary): {amplitude_value:.3f}')
+        if self.dpath_slices_f is not None:
+            self.on_change()
+
+    def update_label_amplitude_secondary_supersaw(self, value):
+        self.amplitude_scale_factor = 1
+        amplitude_value = value * self.amplitude_scale_factor
+        self.label_amplitude_secondary.setText(f'Frame Depth (Secondary): {amplitude_value:d}')
         if self.dpath_slices_f is not None:
             self.on_change()
 

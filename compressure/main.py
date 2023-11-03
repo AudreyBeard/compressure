@@ -265,16 +265,40 @@ def generate_timeline_function(
         ) - amplitude_secondary * np.cos(
             np.linspace(0, 2 * np.pi * frequency_secondary, n_superframes)
         )
+
+        if rectified:
+            locations[locations < 0] = -locations[locations < 0]
+            locations = locations * (len_lvb - 1)
+        elif scaled:
+            locations = (locations - locations.min()) / (locations.max() - locations.min())
+            locations = locations * (len_lvb - 2) + 1
+
+    elif category == "supersaw":
+        linear = np.arange(0, len_lvb + superframe_size + 1, superframe_size)
+        if amplitude_secondary:
+            sawtooth = np.roll(
+                np.arange(
+                    -amplitude_secondary,
+                    amplitude_secondary + 1,
+                    amplitude_secondary
+                ),
+                -1
+            )
+        else:
+            sawtooth = np.array([0])
+        sawtooth_repeated = np.repeat(sawtooth[None, :], len(linear) // len(sawtooth), 0).ravel()
+        if len(sawtooth_repeated) != len(linear):
+            remainder = len(linear) - (len(sawtooth_repeated) % len(linear))
+        else:
+            remainder = 0
+
+        sawtooth_repeated = np.concatenate((
+            sawtooth_repeated,
+            sawtooth_repeated[:remainder]
+        ))
+        locations = linear + sawtooth_repeated
     else:
         raise NotImplementedError(f"can't parse category {category} yet")
-
-    if rectified:
-        locations[locations < 0] = -locations[locations < 0]
-        locations = locations * (len_lvb - 1)
-    elif scaled:
-        locations = (locations - locations.min()) / (locations.max() - locations.min())
-        locations = locations * (len_lvb - 2) + 1
-
     return locations.astype(int)
 
 
