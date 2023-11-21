@@ -297,6 +297,7 @@ def generate_timeline_function(
             sawtooth_repeated[:remainder]
         ))
         locations = linear + sawtooth_repeated
+        locations = np.repeat(locations[None, :], frequency, 0).ravel()
     else:
         raise NotImplementedError(f"can't parse category {category} yet")
     return locations.astype(int)
