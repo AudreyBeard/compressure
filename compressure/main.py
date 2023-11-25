@@ -257,9 +257,7 @@ def generate_timeline_function(
     frequency_secondary=0,
     amplitude_secondary=0,
 ):
-    #if category == "sinusoid":
     if category == "sinusoid":
-        # elif category == "compound-sinusoid":
         locations = -np.cos(
             np.linspace(0, 2 * np.pi * frequency, n_superframes)
         ) - amplitude_secondary * np.cos(
