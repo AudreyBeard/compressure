@@ -566,7 +566,6 @@ class ExporterMenu(GenericSection):
             self.superframe_size()
         )
 
-        # TODO check which tab is active and use that
         if self.subsection_compose.current_function.lower() == "sinusoid":
             amplitude_secondary = self.subsection_compose.slider_amplitude_secondary.value()
             n_superframes = self.subsection_compose.spinbox_superframes_sinusoid.value() - 1
@@ -575,21 +574,17 @@ class ExporterMenu(GenericSection):
             amplitude_secondary = self.subsection_compose.slider_depth_saw.value()
             frequency = self.subsection_compose.slider_repeats_saw.value()
             n_superframes = -1
-            # TODO replace
 
-        # TODO add second slider integration
         self._timeline = generate_timeline_function(
             self.superframe_size(),
             len(self.buffer()),
             frequency=frequency,
             n_superframes=n_superframes,
-            #n_superframes=self.subsection_compose.spinbox_superframes.value() - 1,
             scaled=True,
             rectified=False,
             frequency_secondary=self.subsection_compose.slider_secondary_periods.value() / 2,
             amplitude_secondary=amplitude_secondary * self.subsection_compose.amplitude_scale_factor,
             category=self.subsection_compose.current_function.lower(),
-            #category="supersaw",
         )
 
     def buffer(self):
