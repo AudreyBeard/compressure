@@ -554,7 +554,6 @@ class ExporterMenu(GenericSection):
         else:
             video_list = []
 
-        # print(self.timeline())
         for i, current_slice in enumerate(self.timeline()):
             video_list.append(self.buffer().step(to=current_slice))
 
