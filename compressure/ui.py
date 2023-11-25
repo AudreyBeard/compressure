@@ -568,11 +568,11 @@ class ExporterMenu(GenericSection):
             self.superframe_size()
         )
 
-        if self.subsection_compose.current_function.lower() == "sinusoid":
+        if self.timeline_function == "sinusoid":
             amplitude_secondary = self.subsection_compose.slider_amplitude_secondary.value()
             n_superframes = self.subsection_compose.spinbox_superframes_sinusoid.value() - 1
             frequency = self.subsection_compose.slider_periods.value() / 2
-        elif self.subsection_compose.current_function.lower() == "supersaw":
+        elif self.timeline_function == "supersaw":
             amplitude_secondary = self.subsection_compose.slider_depth_saw.value()
             frequency = self.subsection_compose.slider_repeats_saw.value()
             n_superframes = -1
