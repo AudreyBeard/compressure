@@ -546,12 +546,15 @@ class ExporterMenu(GenericSection):
     def compose_slices(self):
         initial_state = deepcopy(self.buffer().state)
 
-        if self.timeline()[0] == initial_state:
-            video_list = []
+        if self.timeline_function == "sinusoid":
+            if self.timeline()[0] == initial_state:
+                video_list = []
+            else:
+                video_list = [initial_state]
         else:
-            video_list = [initial_state]
+            video_list = []
 
-        print(self.timeline())
+        # print(self.timeline())
         for i, current_slice in enumerate(self.timeline()):
             video_list.append(self.buffer().step(to=current_slice))
 
@@ -592,6 +595,10 @@ class ExporterMenu(GenericSection):
 
     def timeline(self):
         return self._timeline
+
+    @property
+    def timeline_function(self):
+        return self.subsection_compose.current_function.lower()
 
     def update_all(self):
         self.update_timeline()
