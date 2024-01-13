@@ -17,7 +17,7 @@ logging.basicConfig(filename='.compression.log', level=logging.DEBUG)
 
 class VideoCompressionDefaults(object):
     workdir = VideoCompressionPersistenceDefaults.workdir
-    gop_size = 6000
+    gop_size = 100000
     encoder = "libx264"
     encoder_config_options = {
         "mpeg4": {},
