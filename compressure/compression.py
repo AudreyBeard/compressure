@@ -30,6 +30,11 @@ class VideoCompressionDefaults(object):
             "bf": 0,
             "bitrate": "10M",
         },
+        "h264_nvenc": {
+            "preset": "veryfast",
+            "qp": -1,
+            "bf": 0,
+        },
     }
     fps = (24000, 1001)
     pix_fmt = "yuv420p"
