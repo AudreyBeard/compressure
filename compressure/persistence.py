@@ -412,7 +412,7 @@ class CompressureManifest(object):
         """ Gets the directory for a specific slice scheme on an encode
             NOTE this may be a good candidate for a mounted RAMFS for a cache
         """
-        dpath_slices = Path(fpath_encode).parent.parent / 'slices'
+        dpath_slices = Path(fpath_encode).parent / 'slices'
         dpath_parent = dpath_slices / Path(fpath_encode).stem / f'superframe-size={superframe_size}'
         return dpath_parent
 
