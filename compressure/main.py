@@ -49,7 +49,7 @@ class CompressureSystem(object):
     def compress(
         self,
         fpath_in: str,
-        gop_size: int = 6000,
+        gop_size: int = VideoCompressionDefaults.gop_size,
         encoder: str = VideoCompressionDefaults.encoder,
         encoder_config: Optional[dict] = None,
         workdir: str = None,
