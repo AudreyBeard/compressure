@@ -127,3 +127,20 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Vim
+*.swp
+*.swo
+
+# MacOS
+*.DS_Store
+
+# Compressure artifacts
+*.h264
+*.mp4
+
+## Debugging artifacts
+*.hex
+*.log
+*.bak
+*.txt
