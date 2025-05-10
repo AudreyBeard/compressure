@@ -125,6 +125,7 @@ class CompressureSystem(object):
         fpath_encode: str,
         superframe_size: int = 6,
         n_workers: int = 0,
+        h264_raw: bool = False,
     ) -> str:
         """ Slices encoded video into short chunks, writing all to a location
             defined by the persistence class.
@@ -145,7 +146,8 @@ class CompressureSystem(object):
             slicer = VideoSlicer(
                 fpath_in=fpath_encode,
                 superframe_size=superframe_size,
-                workdir=workdir
+                workdir=workdir,
+                h264_raw=h264_raw,
             )
             slicer.slice_video(n_workers=n_workers)
             slices = self.persistence.add_slices(fpath_source, fpath_encode, superframe_size)
@@ -470,6 +472,7 @@ def main():
             fpath_encode=fpaths_encode_forward[i],
             superframe_size=args.superframe_size,
             n_workers=args.n_workers,
+            h264_raw=True,
         )
 
     if fpath_in_backward:

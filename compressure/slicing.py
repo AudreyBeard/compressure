@@ -26,9 +26,13 @@ class VideoSlicerDefaults(object):
 
 
 class VideoSlicer(object):
-    def __init__(self, fpath_in, superframe_size=6,
-                 workdir=VideoSlicerDefaults.workdir,
-                 ):
+    def __init__(
+        self,
+        fpath_in,
+        superframe_size=6,
+        h264_raw=False,
+        workdir=VideoSlicerDefaults.workdir,
+    ):
         self.fpath_in = fpath_in
         self.video_metadata = VideoMetadata(self.fpath_in)
         self.superframe_size = superframe_size
@@ -36,8 +40,18 @@ class VideoSlicer(object):
         self.workdir = str(Path(workdir))
         os.makedirs(self.workdir, exist_ok=True)
 
+        self.h264_raw = h264_raw
         self._init_start_times()
-        self.slices = [str(Path(self.workdir) / f"slice_{i}.avi") for i in range(len(self.start_times))]
+        if self.h264_raw:
+            self.slices = [
+                str(Path(self.workdir) / f"slice_{i}.h264")
+                for i in range(len(self.start_times))
+            ]
+        else:
+            self.slices = [
+                str(Path(self.workdir) / f"slice_{i}.avi")
+                for i in range(len(self.start_times))
+            ]
 
     def _init_start_times(self):
         self.start_times = np.arange(
@@ -87,16 +101,31 @@ class VideoSlicer(object):
         start_time: float,
         slice_duration: float,
     ):
-        command = [
-            "ffmpeg", "-y",
-            "-v", "error",
-            "-i", fpath_in,
-            "-c", "copy",
-            "-ss", f"{start_time:.3f}",
-            "-t", f"{slice_duration:.3f}",
-            "-copyinkf",
-            fpath_out
-        ]
+        if self.h264_raw:
+            command = [
+                "ffmpeg", "-y",
+                "-v", "error",
+                "-i", fpath_in,
+                "-c", "copy",
+                "-ss", f"{start_time:.3f}",
+                "-t", f"{slice_duration:.3f}",
+                "-copyinkf",
+                "-bsf:v", "h264_mp4toannexb",
+                "-f", "h264",
+                fpath_out
+
+            ]
+        else:
+            command = [
+                "ffmpeg", "-y",
+                "-v", "error",
+                "-i", fpath_in,
+                "-c", "copy",
+                "-ss", f"{start_time:.3f}",
+                "-t", f"{slice_duration:.3f}",
+                "-copyinkf",
+                fpath_out
+            ]
         process = try_subprocess(command)
         return process
 
