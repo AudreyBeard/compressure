@@ -39,7 +39,7 @@ def generate_widths(
     """
     """
     # First initialize from [0, 1]
-    widths = np.cos(
+    widths = -np.cos(
         np.linspace(0, 2 * np.pi * n_periods, n_chunks)
     ) / 2 + 0.5
 
@@ -111,6 +111,8 @@ def main(
     chunksize_frames_max: int = 60,
     n_periods_width: int = 1,
     n_periods_position: int = 0.5,
+    producer_repeat_chunks: bool = False,
+    producer_repeat_chunks_for_sec: float = 0.5,
     debug: bool = False,
 ):
     logging.basicConfig(filename="demo.log", level=logging.INFO)
@@ -143,6 +145,8 @@ def main(
     producer = Producer(
         chunk_queue,
         debug=debug,
+        repeat_chunks=producer_repeat_chunks,
+        repeat_chunks_for_sec=producer_repeat_chunks_for_sec,
     )
 
     logger.info("Initializing consumer")

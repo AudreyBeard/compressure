@@ -42,10 +42,14 @@ class Producer(object):
     def __init__(
         self,
         chunk_q: queue.Queue,
+        repeat_chunks: bool = False,
+        repeat_chunks_for_sec: float = 0.5,
         debug: bool = False,
     ):
         self.chunk_q = chunk_q
         self.debug = debug
+        self.repeat_chunks = repeat_chunks
+        self.repeat_chunks_for_sec = repeat_chunks_for_sec
 
     def update(
         self,
@@ -60,15 +64,19 @@ class Producer(object):
             width
         )
         if chunk:
-            tracker = 0
+            n_copies = int(int(self.repeat_chunks) * (self.repeat_chunks_for_sec / width**2))
             try:
                 self.chunk_q.put(chunk, timeout=1)
                 logger.info(f"[p] queued chunk at t={position:.3f}")
+                for i in range(n_copies):
+                    self.chunk_q.put(chunk, timeout=1)
+                    # logger.info(f"[p] queued another chunk at t={position:.3f}")
+
             except queue.Full:
                 logger.info("[p] queue full, skipping")
+                #raise queue.Full
             if self.debug:
                 self._log_chunk(chunk)
-            tracker += width
         else:
             logger.info(f"[p] failed to extract chunk at t={position:.2f}")
 
@@ -123,10 +131,14 @@ class Consumer(object):
                 logger.info(f"[c] playing chunk ({len(chunk)} bytes)")
                 ffplay_proc.stdin.write(chunk)
                 ffplay_proc.stdin.flush()
+
+                # If the queue is empty, just stall
                 while self.chunk_q.empty():
-                    logger.info(f"[c] queue empty; playing chunk ({len(chunk)} bytes)")
+                    #raise queue.Empty
+                    #logger.info(f"[c] queue empty; playing chunk ({len(chunk)} bytes)")
                     ffplay_proc.stdin.write(chunk)
                     ffplay_proc.stdin.flush()
+
                 logger.info(f"[c] played chunk ({len(chunk)} bytes)")
                 if self.debug:
                     self._log_chunk(chunk)
