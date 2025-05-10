@@ -139,7 +139,7 @@ def main(
     logger.debug(f"positions: {positions}")
 
     logger.info("Initializing queue")
-    chunk_queue = queue.Queue(maxsize=100)
+    chunk_queue = queue.Queue(maxsize=500)
 
     logger.info("Initializing producer")
     producer = Producer(

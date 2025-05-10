@@ -68,6 +68,7 @@ class Producer(object):
             try:
                 self.chunk_q.put(chunk, timeout=1)
                 logger.info(f"[p] queued chunk at t={position:.3f}")
+                # I'm not totally sure if this or the Consumer's replication is doing the most work here
                 for i in range(n_copies):
                     self.chunk_q.put(chunk, timeout=1)
                     # logger.info(f"[p] queued another chunk at t={position:.3f}")
@@ -133,6 +134,7 @@ class Consumer(object):
                 ffplay_proc.stdin.flush()
 
                 # If the queue is empty, just stall
+                # I'm not totally sure if this or the Producer's replication is doing the most work here
                 while self.chunk_q.empty():
                     #raise queue.Empty
                     #logger.info(f"[c] queue empty; playing chunk ({len(chunk)} bytes)")
