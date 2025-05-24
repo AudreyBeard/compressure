@@ -380,7 +380,7 @@ class MultiNavigationController(object):
 
     def select_channel(
         self,
-        index
+        index: int
     ):
         self.index = index
         stream = self.controllers[index].selected_stream
@@ -390,11 +390,11 @@ class MultiNavigationController(object):
 
     def navigate(
         self,
-        index,
-        position,
-        width,
+        position: float,
+        width: float,
+        index: int = -1,
     ):
-        self.index = index
+        self.index = index if index >= 0 else self.index
         return self.controllers[index].navigate(position, width)
 
 
