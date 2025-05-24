@@ -64,7 +64,7 @@ class Producer(object):
             width
         )
         if chunk:
-            n_copies = int(int(self.repeat_chunks) * (self.repeat_chunks_for_sec / width**2))
+            n_copies = 1 + int(int(self.repeat_chunks) * (self.repeat_chunks_for_sec / width**2))
             try:
                 self.chunk_q.put(chunk, timeout=1)
                 logger.info(f"[p] queued chunk at t={position:.3f}")

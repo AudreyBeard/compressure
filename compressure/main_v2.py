@@ -231,15 +231,15 @@ def main(
     producer = Producer(
         chunk_q,
         debug=True,
-        repeat_chunks=True,
-        repeat_chunks_for_sec=0.1,
+        repeat_chunks=False,
+        repeat_chunks_for_sec=0.05,
     )
 
     print("initializing consumer")
     consumer = Consumer(
         fpath_video_init=fpath_fwd,
         chunk_q=chunk_q,
-        width_init=5,
+        width_init=0.5,
         debug=True,
     )
 
@@ -248,20 +248,29 @@ def main(
 
     position = 0.0
     width = 0.5
+    fpath_selected = fpath_fwd
     with mido.open_input(midi_object_name) as port:
         print("opened midi port")
-        for msg in port:
-            if msg.control == 120:
-                position = msg.value / 127 * md['duration']
-            elif msg.control == 16:
-                width = msg.value / (md['frames'] / md['duration'])
-            fpath_selected, _, _ = navigator.navigate(position, width)
-            print(position, width)
-            producer.update(
-                fpath_video=fpath_selected,
-                position=position,
-                width=width
-            )
+        producer.update(
+            fpath_video=fpath_selected,
+            position=position,
+            width=width
+        )
+        while True:
+            msg = port.poll()
+            if msg:
+                if msg.control == 120:
+                    position = msg.value / 127 * md['duration']
+                elif msg.control == 16:
+                    width = msg.value / (md['frames'] / md['duration'])
+                fpath_selected, _, _ = navigator.navigate(position, width)
+                position = md['duration'] - position if fpath_selected == fpath_bak else position
+                print(position, width)
+                producer.update(
+                    fpath_video=fpath_selected,
+                    position=position,
+                    width=width
+                )
 
 
 if __name__ == "__main__":
