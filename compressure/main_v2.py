@@ -8,6 +8,7 @@ from typing import List
 import mido
 
 from compressure.compression import SingleVideoCompression
+from compressure.midi import ParserDeque  # noqa
 from compressure.stream import (
     Consumer,
     Producer,
@@ -250,27 +251,75 @@ def main(
     width = 0.5
     fpath_selected = fpath_fwd
     with mido.open_input(midi_object_name) as port:
+        #port._queue = ParserDeque()
         print("opened midi port")
         producer.update(
             fpath_video=fpath_selected,
             position=position,
             width=width
         )
+        print(port._queue)
+        msg = None
         while True:
-            msg = port.poll()
+            #with port._lock:
+            #    if port._messages:
+            #        msg = port._messages.pop()
+            #    else:
+            #        msg = None
+            #msg = port.poll()
+            #msg_sample = port.poll()
+            #while msg_sample is not None:
+            #    msg_sample = port.poll()
+            #    msg = msg_sample
+            #if msg_old:
+            msg = get_midi_message(port)
             if msg:
-                if msg.control == 120:
-                    position = msg.value / 127 * md['duration']
-                elif msg.control == 16:
-                    width = msg.value / (md['frames'] / md['duration'])
+                position, width = update_position_width(
+                    midi_msg=msg,
+                    position_old=position,
+                    width_old=width,
+                    video_duration=md['duration'],
+                    video_frames=md['frames']
+                )
+
                 fpath_selected, _, _ = navigator.navigate(position, width)
                 position = md['duration'] - position if fpath_selected == fpath_bak else position
-                print(position, width)
+                print(fpath_selected, f"{position:.3f}", f"{width:.3f}")
                 producer.update(
                     fpath_video=fpath_selected,
                     position=position,
                     width=width
                 )
+
+
+def update_position_width(
+    midi_msg,
+    position_old: float,
+    width_old: float,
+    video_duration: float,
+    video_frames: int,
+):
+    position, width = position_old, width_old
+    try:
+        if midi_msg.control == 120:
+            position = midi_msg.value / 127 * video_duration
+        elif midi_msg.control == 16:
+            width = midi_msg.value / (video_frames / video_duration)
+    except AttributeError:
+        pass
+
+    return position, width
+
+
+def get_midi_message(
+    port,
+):
+    msg_sample = port.poll()
+    msg = msg_sample
+    while msg_sample is not None:
+        msg = msg_sample
+        msg_sample = port.poll()
+    return msg
 
 
 if __name__ == "__main__":
