@@ -172,7 +172,7 @@ def import_reverse(
     return fpath_out, fpath_out_reverse
 
 
-class NavigationController(object):
+class PositionNavigationController(object):
     def __init__(
         self,
         fpath_fwd: str,
@@ -199,6 +199,30 @@ class NavigationController(object):
         return self.selected_stream, self.pos_current, self.width
 
 
+class VelocityNavigationController(object):
+    def __init__(
+        self,
+        fpath: str,
+        video_duration: float,
+    ):
+        self.fpath = fpath
+        self.velolcity = 1
+        self.width = 1.0 / 3.0
+        self.position = 0
+        self.duration = video_duration
+
+    def navigate(
+        self,
+        velocity: float,
+        width: float,
+    ):
+        stride = velocity * width
+        self.position = (self.position + stride) % self.duration
+        self.width = width
+        self.velocity = velocity
+        return self.fpath, self.position, self.width
+
+
 class MultiNavigationController(object):
     def __init__(
         self,
@@ -210,7 +234,7 @@ class MultiNavigationController(object):
         self.fpaths_bak = fpaths_bak
         self.controllers = []
         for i, (fp_fwd, fp_bak) in enumerate(zip(fpaths_fwd, fpaths_bak)):
-            self.controllers.append(NavigationController(
+            self.controllers.append(PositionNavigationController(
                 fp_fwd,
                 fp_bak
             ))
@@ -272,6 +296,7 @@ def main(
     midi_object_name: str = 'nanoKONTROL2 SLIDER/KNOB',
     width_max: float = 1.0,
     split_clip: bool = False,
+    navigation_mode: str = "position",
 ):
 
     # TODO finish up the split clip functionality
@@ -286,26 +311,32 @@ def main(
             fpath_in=fpath_in,
         )
 
-    print("getting metadata")
+    print("getting metadata", flush=True)
     md = get_video_metadata(
         fpath_fwd
     )
 
-    print("initializing navigator")
+    print("initializing navigator", flush=True)
     if split_clip:
         navigator = MultiNavigationController(
             fpaths_fwd,
             fpaths_bak,
         )
     else:
-        navigator = NavigationController(
-            fpath_fwd,
-            fpath_bak,
-        )
+        if navigation_mode.lower() == "position":
+            navigator = PositionNavigationController(
+                fpath_fwd,
+                fpath_bak,
+            )
+        else:
+            navigator = VelocityNavigationController(
+                fpath_fwd,
+                video_duration=md['duration'],
+            )
 
     chunk_q = queue.Queue(maxsize=500)
 
-    print("initializing producer")
+    print("initializing producer", flush=True)
     producer = Producer(
         chunk_q,
         debug=True,
@@ -313,7 +344,7 @@ def main(
         repeat_chunks_for_sec=0.05,
     )
 
-    print("initializing consumer")
+    print("initializing consumer", flush=True)
     consumer = Consumer(
         fpath_video_init=fpath_fwd,
         chunk_q=chunk_q,
@@ -321,22 +352,25 @@ def main(
         debug=True,
     )
 
-    print("starting consumer")
+    print("starting consumer", flush=True)
     threading.Thread(target=consumer._start, daemon=True).start()
+
+    # Ignored if navigation_mode == "position"
+    velocity = 1.0
 
     position = 0.0
     width = 0.5
     index = 0
     fpath_selected = fpath_fwd
     with mido.open_input(midi_object_name) as port:
+        interpreter = MidiInterpreter(port)
         #port._queue = ParserDeque()
-        print("opened midi port")
+        print("opened midi port", flush=True)
         producer.update(
             fpath_video=fpath_selected,
             position=position,
             width=width
         )
-        print(port._queue)
         msg = None
         while True:
             #with port._lock:
@@ -350,15 +384,16 @@ def main(
             #    msg_sample = port.poll()
             #    msg = msg_sample
             #if msg_old:
-            msg = get_midi_message(port)
-            if msg:
+            msg = interpreter.get_message()
+            if msg and navigation_mode.lower() == "position":
                 if msg.control == 64:
                     position = 0
                     fpath_selected = fpath_fwd
                     navigator.selected_stream = fpath_selected
                     navigator.pos_current = position
 
-                position, width, index = update_position_width_index(
+                # TODO change this to speed control, not position
+                position, width, index = interpreter.update_position_width_index(
                     midi_msg=msg,
                     position_old=position,
                     width_old=width,
@@ -372,6 +407,32 @@ def main(
                     position = md['duration'] - position if fpath_selected in fpaths_bak else position
                 else:
                     fpath_selected, _, _ = navigator.navigate(position, width)
+                    position = md['duration'] - position if fpath_selected == fpath_bak else position
+
+            else:
+                if msg and msg.control == 64:
+                    position = 0
+                    fpath_selected = fpath_fwd
+                    navigator.selected_stream = fpath_selected
+                    navigator.pos_current = position
+
+                try:
+                    velocity, width, index = interpreter.update_velocity_width_index(
+                        midi_msg=msg,
+                        velocity_old=velocity,
+                        width_old=width,
+                        index_old=index,
+                        video_duration=md['duration'],
+                        video_frames=md['frames']
+                    )
+                except AttributeError:
+                    pass
+
+                if split_clip:
+                    fpath_selected, position, _ = navigator.navigate(velocity, width, index)
+                    position = md['duration'] - position if fpath_selected in fpaths_bak else position
+                else:
+                    fpath_selected, position, _ = navigator.navigate(velocity, width)
                     position = md['duration'] - position if fpath_selected == fpath_bak else position
 
                 print(fpath_selected, f"{position:.3f}", f"{width:.3f}")
@@ -432,6 +493,99 @@ def get_midi_message(
     return msg
 
 
+class MidiInterpreter(object):
+    def __init__(
+        self,
+        port,
+        verbosity: int = 2,
+    ):
+        self.port = port
+        self._v = verbosity
+        if self._v > 0:
+            print(f"MIDI Port Queue: {self.port._queue}", flush=True)
+
+    def get_message(
+        self,
+    ):
+        """ This is a hacky and inefficient way to get and deliver only the most
+            recent message in the queue
+        """
+        msg_sample = self.port.poll()
+        msg = msg_sample
+        while msg_sample is not None:
+            msg = msg_sample
+            msg_sample = self.port.poll()
+        return msg
+
+    def _cc_is_position(self, cc) -> bool:
+        return cc >= 120 and cc <= 127
+
+    def _cc_is_width(self, cc) -> bool:
+        return cc >= 16 and cc <= 23
+
+    def _get_index(self, cc) -> bool:
+        if self._cc_is_position(cc):
+            return cc % 120
+        elif self._cc_is_width(cc):
+            return cc % 16
+        else:
+            return cc % 64
+
+    def update_position_width_index(
+        self,
+        midi_msg,
+        position_old: float,
+        width_old: float,
+        index_old: int,
+        video_duration: float,
+        video_frames: int,
+    ) -> Tuple[float, float, int]:
+        """ Assumes:
+            - NanoKontrol 2
+            - position-based faders
+            - width-based pots
+        """
+        position, width, index = position_old, width_old, index_old
+        try:
+            if self._cc_is_position(midi_msg.control):
+                position = midi_msg.value / 127 * video_duration
+            elif self._cc_is_width(midi_msg.control):
+                width = midi_msg.value / (video_frames / video_duration)
+        except AttributeError:
+            pass
+
+        index = self._get_index(midi_msg.control)
+
+        return position, width, index
+
+    def update_velocity_width_index(
+        self,
+        midi_msg,
+        velocity_old: float,
+        width_old: float,
+        index_old: int,
+        video_duration: float,
+        video_frames: int,
+    ) -> Tuple[float, float, int]:
+        """ Assumes:
+            - NanoKontrol 2
+            - velocity-based faders
+            - width-based pots
+        """
+        velocity, width, index = velocity_old, width_old, index_old
+        try:
+            if self._cc_is_position(midi_msg.control):
+                velocity = midi_msg.value / 127
+            elif self._cc_is_width(midi_msg.control):
+                width = midi_msg.value / (video_frames / video_duration)
+        except AttributeError:
+            pass
+
+        index = self._get_index(midi_msg.control)
+
+        return velocity, width, index
+
+
 def profile(
 ):
     cProfile.run('from compressure.main_v2 import main; main("input.mp4")')
@@ -439,4 +593,4 @@ def profile(
 
 if __name__ == "__main__":
     logging.basicConfig(filename="main_v2.log", level=logging.INFO)
-    main('input.mp4')
+    main('input.mp4', navigation_mode="velocity")
